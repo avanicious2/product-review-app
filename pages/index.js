@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Head from 'next/head';
+import Image from 'next/image';
 
-// Initialize Supabase client - replace with your project URL and anon key
+// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -19,7 +20,6 @@ export default function Home() {
   const fetchNextProduct = async () => {
     setLoading(true);
     try {
-      // Get all reviewed scrape_ids by this user
       const { data: reviewedProducts } = await supabase
         .from('reviews')
         .select('scrape_id')
@@ -27,7 +27,6 @@ export default function Home() {
 
       const reviewedIds = reviewedProducts?.map(r => r.scrape_id) || [];
 
-      // Fetch a product that hasn't been reviewed
       const { data: products } = await supabase
         .from('input_products')
         .select('*')
@@ -37,13 +36,20 @@ export default function Home() {
       if (products && products.length > 0) {
         setCurrentProduct(products[0]);
       } else {
-        setCurrentProduct(null); // No more products to review
+        setCurrentProduct(null);
       }
     } catch (error) {
       console.error('Error fetching product:', error);
     }
     setLoading(false);
   };
+
+  // Use effect to fetch product when name is submitted
+  useEffect(() => {
+    if (isNameSubmitted && name) {
+      fetchNextProduct();
+    }
+  }, [isNameSubmitted, name]);
 
   // Submit review
   const submitReview = async (score) => {
@@ -68,7 +74,6 @@ export default function Home() {
     e.preventDefault();
     if (name.trim()) {
       setIsNameSubmitted(true);
-      fetchNextProduct();
     }
   };
 
@@ -81,7 +86,6 @@ export default function Home() {
 
       <main className="container mx-auto px-4 py-8">
         {!isNameSubmitted ? (
-          // Name input form
           <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
             <h1 className="text-2xl font-bold mb-4">Welcome to Product Review</h1>
             <form onSubmit={handleNameSubmit}>
@@ -102,10 +106,8 @@ export default function Home() {
             </form>
           </div>
         ) : loading ? (
-          // Loading state
           <div className="text-center">Loading...</div>
         ) : !currentProduct ? (
-          // No more products to review
           <div className="text-center">
             <h2 className="text-xl font-bold">No more products to review!</h2>
             <button
@@ -116,21 +118,22 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          // Product review card
           <div className="max-w-xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="p-4">
               <h2 className="text-xl font-bold mb-2">{currentProduct.brand_name}</h2>
               <p className="text-gray-600 mb-4">{currentProduct.product_name}</p>
               <div className="relative pt-[100%] mb-4">
-                <img
-                  src={currentProduct.product_primary_image_url}
-                  alt={currentProduct.product_name}
-                  className="absolute top-0 left-0 w-full h-full object-contain"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = 'https://via.placeholder.com/400?text=Image+Not+Found';
-                  }}
-                />
+                <div className="absolute top-0 left-0 w-full h-full">
+                  <Image
+                    src={currentProduct.product_primary_image_url}
+                    alt={currentProduct.product_name}
+                    layout="fill"
+                    objectFit="contain"
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://via.placeholder.com/400?text=Image+Not+Found';
+                    }}
+                  />
+                </div>
               </div>
               <div className="flex justify-between items-center mb-4">
                 <span className="text-lg font-semibold">₹{currentProduct.selling_price}</span>
