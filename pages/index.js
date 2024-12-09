@@ -5,8 +5,8 @@ import Head from 'next/head';
 
 // Initialize Supabase client - replace with your project URL and anon key
 const supabase = createClient(
-  'https://cycevvkxkermpevnegfl.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5Y2V2dmt4a2VybXBldm5lZ2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM3NjY2ODQsImV4cCI6MjA0OTM0MjY4NH0.-lKrZAeBJjDGSa_lbCfx7M1eVRQ9dBYLruSqkeJ7AC4'
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
 export default function Home() {
