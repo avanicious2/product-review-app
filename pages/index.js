@@ -52,43 +52,25 @@ export default function Home() {
   console.log("Fetching next product...");
   setLoading(true);
   try {
-    // Get review counts for all products in a subquery
-    const { data: reviewData, error: reviewError } = await supabase
-      .from('reviews')
-      .select(`
-        scrape_id,
-        review_count:count(*)
-      `)
-      .group('scrape_id');
-
-    if (reviewError) throw reviewError;
-
-    // Get the products already reviewed by current user
-    const { data: userReviews, error: userReviewError } = await supabase
+    // Get products already reviewed by current user
+    const { data: userReviews, error: reviewError } = await supabase
       .from('reviews')
       .select('scrape_id')
       .eq('reviewer_email', email);
 
-    if (userReviewError) throw userReviewError;
+    if (reviewError) throw reviewError;
 
-    // Create a set of scrape_ids that either:
-    // 1. Have been reviewed by the current user OR
-    // 2. Have 5 or more reviews
-    const excludedIds = new Set([
-      ...userReviews.map(r => r.scrape_id),
-      ...reviewData.filter(r => r.review_count >= 5).map(r => r.scrape_id)
-    ]);
+    // Get excluded product IDs or use 0 if none
+    const reviewedIds = userReviews?.map(r => r.scrape_id).join(',') || '0';
 
-    // Convert to string for the query, if empty use '0' to prevent SQL error
-    const excludedIdsString = excludedIds.size > 0 
-      ? Array.from(excludedIds).join(',') 
-      : '0';
-
-    // Get one product that hasn't been excluded
-    const { data: products, error: productError } = await supabase
+    // Get one product that:
+    // 1. Has less than 5 reviews
+    // 2. Hasn't been reviewed by current user
+    const { data: product, error: productError } = await supabase
       .from('input_products')
       .select('*')
-      .not('scrape_id', 'in', `(${excludedIdsString})`)
+      .lt('review_count', 5)
+      .not('scrape_id', 'in', `(${reviewedIds})`)
       .limit(1)
       .single();
 
@@ -96,7 +78,7 @@ export default function Home() {
       throw productError;
     }
 
-    setCurrentProduct(products || null);
+    setCurrentProduct(product || null);
   } catch (error) {
     console.error('Error fetching product:', error);
     setError('Error loading next product');
@@ -107,25 +89,40 @@ export default function Home() {
 
   // Submit review
   const submitReview = async (score) => {
-    console.log("Submitting review:", { score, product: currentProduct });
-    try {
-      const { error } = await supabase
-        .from('reviews')
-        .insert({
-          scrape_id: currentProduct.scrape_id,
-          review_score: score,
-          reviewer_email: email
-        });
+  console.log("Submitting review:", { score, product: currentProduct });
+  try {
+    // Check current review count before submitting
+    const { data: product, error: checkError } = await supabase
+      .from('input_products')
+      .select('review_count')
+      .eq('scrape_id', currentProduct.scrape_id)
+      .single();
 
-      if (error) throw error;
-      
-      console.log("Review submitted successfully");
+    if (checkError) throw checkError;
+
+    if (product.review_count >= 5) {
+      setError('This product has already reached maximum reviews');
       fetchNextProduct();
-    } catch (error) {
-      console.error('Error submitting review:', error);
-      setError('Error submitting review');
+      return;
     }
-  };
+
+    const { error } = await supabase
+      .from('reviews')
+      .insert({
+        scrape_id: currentProduct.scrape_id,
+        review_score: score,
+        reviewer_email: email
+      });
+
+    if (error) throw error;
+    
+    console.log("Review submitted successfully");
+    fetchNextProduct();
+  } catch (error) {
+    console.error('Error submitting review:', error);
+    setError('Error submitting review');
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-100">
