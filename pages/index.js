@@ -69,30 +69,19 @@ export default function Home() {
     setError('');
     
     try {
-      const { data: userReviews, error: reviewError } = await supabase
-        .from('reviews')
-        .select('scrape_id')
-        .eq('reviewer_email', email);
-  
-      if (reviewError) throw reviewError;
-      
-      // Instead of string concatenation, use .in() with array
-      const reviewedIds = userReviews?.map(r => r.scrape_id) || [];
-      
-      // Using .in() operator properly
-      const query = supabase
+      // Using Postgres syntax with subquery instead of .not('scrape_id', 'in', ...)
+      const { data: products, error: productError } = await supabase
         .from('input_products')
         .select('*')
         .lt('review_count', 5)
+        .not('scrape_id', 'in', 
+          supabase
+            .from('reviews')
+            .select('scrape_id')
+            .eq('reviewer_email', email)
+        )
         .order('review_count', { ascending: false })
         .limit(QUEUE_THRESHOLD);
-  
-      // Only add not-in condition if there are reviewed products
-      if (reviewedIds.length > 0) {
-        query.not('scrape_id', 'in', reviewedIds);
-      }
-  
-      const { data: products, error: productError } = await query;
   
       if (productError) throw productError;
       
