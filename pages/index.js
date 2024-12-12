@@ -69,23 +69,16 @@ export default function Home() {
     setError('');
     
     try {
-      // Get IDs of products currently in queue to exclude them
-      const queueIds = productQueue.map(p => p.scrape_id);
-      
+      // First, get a list of products that need reviews using a JOIN
       const { data: products, error: productError } = await supabase
-        .from('input_products')
-        .select('*')
+        .from('input_products as p')
+        .select(`
+          *,
+          reviews!inner(reviewer_email)
+        `)
         .lt('review_count', 5)
-        .not(
-          'exists', 
-          supabase
-            .from('reviews')
-            .select('1')
-            .eq('reviewer_email', email)
-            .eq('reviews.scrape_id', 'input_products.scrape_id')
-        )
-        // Also exclude products currently in queue
         .not('scrape_id', 'in', queueIds)
+        .is('reviews.reviewer_email', null)
         .order('review_count', { ascending: false })
         .limit(QUEUE_THRESHOLD);
   
