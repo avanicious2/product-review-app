@@ -1,5 +1,5 @@
 // pages/index.js
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Head from 'next/head';
 import Image from 'next/image';
@@ -27,6 +27,8 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [productQueue, setProductQueue] = useState([]);
+  const QUEUE_THRESHOLD = 10;
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -47,7 +49,13 @@ export default function Home() {
       }
 
       setIsAuthenticated(true);
-      fetchNextProduct();
+      fetchProductBatch().then(products => {
+        setProductQueue(products);
+        if (products.length > 0) {
+          setCurrentProduct(products[0]);
+          setProductQueue(products.slice(1));
+        }
+      });
     } catch (err) {
       console.error('Authentication error:', err);
       setError('Authentication failed');
@@ -56,9 +64,10 @@ export default function Home() {
     }
   };
 
-  const fetchNextProduct = async () => {
+  const fetchProductBatch = async () => {
     setLoading(true);
     setError('');
+    
     try {
       const { data: userReviews, error: reviewError } = await supabase
         .from('reviews')
@@ -66,28 +75,49 @@ export default function Home() {
         .eq('reviewer_email', email);
 
       if (reviewError) throw reviewError;
-
+      
       const reviewedIds = userReviews?.map(r => r.scrape_id).join(',') || '0';
-
-      const { data: product, error: productError } = await supabase
+      
+      const { data: products, error: productError } = await supabase
         .from('input_products')
         .select('*')
         .lt('review_count', 5)
         .not('scrape_id', 'in', `(${reviewedIds})`)
-        .limit(1)
-        .single();
+        .order('review_count', { ascending: false })
+        .limit(QUEUE_THRESHOLD);
 
-      if (productError && productError.code !== 'PGRST116') {
-        throw productError;
-      }
-
-      setCurrentProduct(product || null);
+      if (productError) throw productError;
+      
+      return products || [];
     } catch (err) {
-      console.error('Error fetching product:', err);
-      setError('Failed to load next product');
+      console.error('Error fetching product batch:', err);
+      setError('Failed to load products');
+      return [];
     } finally {
       setLoading(false);
     }
+  };
+
+  const ensureProductQueue = async () => {
+    if (productQueue.length <= 2) {
+      const newProducts = await fetchProductBatch();
+      setProductQueue(current => [...current, ...newProducts]);
+    }
+  };
+
+  const fetchNextProduct = async () => {
+    await ensureProductQueue();
+    
+    if (productQueue.length === 0) {
+      setCurrentProduct(null);
+      return;
+    }
+    
+    setProductQueue(current => {
+      const [nextProduct, ...remainingProducts] = current;
+      setCurrentProduct(nextProduct);
+      return remainingProducts;
+    });
   };
 
   const submitReview = async (score) => {
@@ -101,26 +131,22 @@ export default function Home() {
         .from('reviews')
         .insert([
           { scrape_id: currentProduct.scrape_id, review_score: score, reviewer_email: email }
-        ])
-        .select();
+        ]);
 
-      if (insertError) {
-        console.error('Insert error:', insertError);
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
       const { error: updateError } = await supabase
         .from('input_products')
         .update({ review_count: currentProduct.review_count + 1 })
         .eq('scrape_id', currentProduct.scrape_id);
 
-      if (updateError) {
-        console.error('Update error:', updateError);
-        throw updateError;
-      }
+      if (updateError) throw updateError;
 
       setReviewCounter(prev => prev + 1);
-      await fetchNextProduct();
+      
+      ensureProductQueue().then(() => {
+        fetchNextProduct();
+      });
     } catch (err) {
       console.error('Error submitting review:', err);
       setError('Failed to submit review: ' + err.message);
@@ -128,6 +154,18 @@ export default function Home() {
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (isAuthenticated && productQueue.length === 0) {
+      fetchProductBatch().then(products => {
+        setProductQueue(products);
+        if (products.length > 0) {
+          setCurrentProduct(products[0]);
+          setProductQueue(products.slice(1));
+        }
+      });
+    }
+  }, [isAuthenticated]);
 
   return (
     <Box 
@@ -198,7 +236,6 @@ export default function Home() {
           flexDirection="column"
           position="relative"
         >
-          {/* Content Container */}
           <Box 
             flex="1"
             overflow="auto"
@@ -206,7 +243,6 @@ export default function Home() {
             borderRadius="lg"
             boxShadow="lg"
           >
-            {/* Image Section */}
             <Box position="relative" pt="100%">
               <Image
                 src={currentProduct.product_primary_image_url}
@@ -216,7 +252,6 @@ export default function Home() {
               />
             </Box>
 
-            {/* Info Section */}
             <Box p={4}>
               <Text fontSize="sm" color="gray.500" mb={1}>products reviewed: {reviewCounter}</Text>
               <Text fontSize="lg" fontWeight="medium" color="gray.800">
@@ -226,7 +261,6 @@ export default function Home() {
             </Box>
           </Box>
 
-          {/* Fixed Button Section */}
           <Box
             position="sticky"
             bottom={0}
