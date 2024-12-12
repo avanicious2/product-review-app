@@ -48,50 +48,51 @@ export default function Home() {
     }
   };
 
-  // Fetch next unreviewed product
   const fetchNextProduct = async () => {
-    console.log("Fetching next product...");
-    setLoading(true);
-    try {
-      // First, get products that have been reviewed less than 5 times
-      const { data: reviewCounts, error: countError } = await supabase
-        .from('reviews')
-        .select('scrape_id, count(*)')
-        .group('scrape_id')
-        .having('count(*)', 'lt', 5);
+  console.log("Fetching next product...");
+  setLoading(true);
+  try {
+    // First get products already reviewed by current user
+    const { data: userReviews, error: reviewError } = await supabase
+      .from('reviews')
+      .select('scrape_id')
+      .eq('reviewer_email', email);
 
-      if (countError) throw countError;
+    if (reviewError) throw reviewError;
 
-      // Get products reviewed by current user
-      const { data: userReviews, error: reviewError } = await supabase
-        .from('reviews')
-        .select('scrape_id')
-        .eq('reviewer_email', email);
+    // Get products reviewed 5 or more times
+    const { data: fullReviews, error: fullReviewsError } = await supabase
+      .from('reviews')
+      .select('scrape_id, count(*)')
+      .group('scrape_id')
+      .having('count(*)', '>=', 5);
 
-      if (reviewError) throw reviewError;
+    if (fullReviewsError) throw fullReviewsError;
 
-      // Create sets for efficient lookup
-      const reviewedIds = new Set(userReviews?.map(r => r.scrape_id) || []);
-      const validProductIds = new Set(reviewCounts?.map(r => r.scrape_id) || []);
+    // Create sets for efficient lookup
+    const reviewedByUser = new Set(userReviews?.map(r => r.scrape_id) || []);
+    const fullyReviewed = new Set(fullReviews?.map(r => r.scrape_id) || []);
 
-      // Get one product that hasn't been reviewed by user and hasn't reached 5 reviews
-      const { data: products, error: productError } = await supabase
-        .from('input_products')
-        .select('*')
-        .not('scrape_id', 'in', `(${Array.from(reviewedIds).join(',')})`)
-        .filter('scrape_id', 'in', `(${Array.from(validProductIds).join(',')})`)
-        .limit(1);
+    // Get one product that:
+    // 1. Hasn't been reviewed by current user
+    // 2. Hasn't received 5 reviews yet
+    const { data: products, error: productError } = await supabase
+      .from('input_products')
+      .select('*')
+      .not('scrape_id', 'in', `(${Array.from(reviewedByUser).join(',') || '0'})`)
+      .not('scrape_id', 'in', `(${Array.from(fullyReviewed).join(',') || '0'})`)
+      .limit(1);
 
-      if (productError) throw productError;
+    if (productError) throw productError;
 
-      setCurrentProduct(products?.[0] || null);
-    } catch (error) {
-      console.error('Error fetching product:', error);
-      setError('Error loading next product');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setCurrentProduct(products?.[0] || null);
+  } catch (error) {
+    console.error('Error fetching product:', error);
+    setError('Error loading next product');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Submit review
   const submitReview = async (score) => {
