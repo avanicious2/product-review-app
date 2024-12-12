@@ -171,51 +171,16 @@ export default function Home() {
         )}
 
         {!isAuthenticated ? (
-          <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
-            <h1 className="text-2xl font-bold mb-4">Login to Review Products</h1>
-            <form onSubmit={handleAuth}>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="w-full p-2 border rounded mb-4"
-                required
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                className="w-full p-2 border rounded mb-4"
-                required
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-500 text-white p-2 rounded disabled:bg-blue-300 hover:bg-blue-600 active:bg-blue-700"
-              >
-                {loading ? 'Logging in...' : 'Login'}
-              </button>
-            </form>
-          </div>
+          // ... keep login form the same ...
         ) : loading ? (
           <div className="text-center">Loading...</div>
         ) : !currentProduct ? (
-          <div className="text-center">
-            <h2 className="text-xl font-bold">No more products to review!</h2>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600 active:bg-blue-700"
-            >
-              Start New Session
-            </button>
-          </div>
+          // ... keep no products view the same ...
         ) : (
-          <div className="max-w-xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="p-4">
-              <div className="flex justify-between items-center mb-4">
+          <div className="max-w-xl mx-auto bg-white rounded-lg shadow-lg">
+            <div className="p-4 flex flex-col">
+              {/* Header Section */}
+              <div className="flex justify-between items-center mb-4 relative z-10">
                 <h2 className="text-xl font-bold">{currentProduct.brand_name}</h2>
                 <button
                   type="button"
@@ -225,22 +190,31 @@ export default function Home() {
                   Logout
                 </button>
               </div>
-              <p className="text-gray-600 mb-4">{currentProduct.product_name}</p>
-              <div className="relative h-96 mb-4">
-                <Image
-                  src={currentProduct.product_primary_image_url}
-                  alt={currentProduct.product_name}
-                  fill
-                  style={{ objectFit: 'contain' }}
-                  className="pointer-events-none"
-                  priority
-                />
+              
+              <p className="text-gray-600 mb-4 relative z-10">{currentProduct.product_name}</p>
+
+              {/* Image Container with Fixed Height */}
+              <div className="w-full h-[400px] relative mb-4">
+                <div className="absolute inset-0">
+                  <Image
+                    src={currentProduct.product_primary_image_url}
+                    alt={currentProduct.product_name}
+                    fill
+                    style={{ objectFit: 'contain' }}
+                    className="pointer-events-none"
+                    priority
+                  />
+                </div>
               </div>
-              <div className="flex justify-between items-center mb-4">
+
+              {/* Price Section */}
+              <div className="flex justify-between items-center mb-4 relative z-10">
                 <span className="text-lg font-semibold">₹{currentProduct.selling_price}</span>
                 <span className="text-sm text-gray-500">{currentProduct.price_category}</span>
               </div>
-              <div className="flex justify-center gap-4 relative z-50">
+
+              {/* Review Buttons */}
+              <div className="flex justify-center gap-4 relative z-10">
                 <button
                   type="button"
                   onClick={(e) => handleReview(0, e)}
@@ -265,3 +239,4 @@ export default function Home() {
     </div>
   );
 }
+
