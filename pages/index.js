@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Head from 'next/head';
 import Image from 'next/image';
@@ -18,22 +18,13 @@ export default function Home() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Debugging log for initial render
-  console.log('App State:', { 
-    isAuthenticated, 
-    hasCurrentProduct: !!currentProduct, 
-    loading, 
-    submitting 
-  });
-
   const handleAuth = async (e) => {
-    console.log('Login attempt started');
     e.preventDefault();
+    console.log('Login attempt started');
     setLoading(true);
     setError('');
 
     try {
-      console.log('Attempting login with email:', email);
       const { data: userData, error: userError } = await supabase
         .from('user_identities')
         .select('*')
@@ -62,6 +53,7 @@ export default function Home() {
     console.log('Fetching next product');
     setLoading(true);
     setError('');
+    
     try {
       const { data: userReviews, error: reviewError } = await supabase
         .from('reviews')
@@ -73,8 +65,8 @@ export default function Home() {
         throw reviewError;
       }
 
-      console.log('User reviews fetched:', userReviews);
       const reviewedIds = userReviews?.map(r => r.scrape_id).join(',') || '0';
+      console.log('Fetching product not in reviewed IDs:', reviewedIds);
 
       const { data: product, error: productError } = await supabase
         .from('input_products')
@@ -99,16 +91,20 @@ export default function Home() {
     }
   };
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     console.log('Logout clicked');
     setIsAuthenticated(false);
     setCurrentProduct(null);
     setEmail('');
     setPassword('');
-  }, []);
+  };
 
-  const submitReview = useCallback(async (score) => {
-    console.log('Submit review clicked:', { score, email, productId: currentProduct?.scrape_id });
+  const handleReview = async (score, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Review clicked with score:', score);
     
     if (!currentProduct || submitting) {
       console.log('Preventing submission:', { currentProduct: !!currentProduct, submitting });
@@ -119,10 +115,10 @@ export default function Home() {
     setError('');
 
     try {
-      console.log('Inserting review:', { 
-        scrape_id: currentProduct.scrape_id, 
-        score, 
-        email 
+      console.log('Submitting review:', {
+        scrape_id: currentProduct.scrape_id,
+        score,
+        email
       });
 
       const { data, error: insertError } = await supabase
@@ -141,7 +137,6 @@ export default function Home() {
 
       console.log('Review submitted successfully:', data);
       
-      // Update review count in input_products table
       const { error: updateError } = await supabase
         .from('input_products')
         .update({ review_count: currentProduct.review_count + 1 })
@@ -152,6 +147,7 @@ export default function Home() {
         throw updateError;
       }
 
+      console.log('Product review count updated, fetching next product');
       await fetchNextProduct();
     } catch (error) {
       console.error('Error submitting review:', error);
@@ -159,34 +155,7 @@ export default function Home() {
     } finally {
       setSubmitting(false);
     }
-  }, [currentProduct, submitting, email]);
-
-  const ProductReviewButtons = useCallback(() => (
-    <div className="flex justify-center gap-4">
-      <button
-        type="button"
-        onClick={() => {
-          console.log('Dislike button clicked');
-          submitReview(0);
-        }}
-        disabled={submitting}
-        className="px-6 py-2 bg-red-500 text-white rounded-full disabled:bg-red-300 hover:bg-red-600 active:bg-red-700 cursor-pointer z-10"
-      >
-        👎 {submitting ? 'Submitting...' : 'Dislike'}
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          console.log('Like button clicked');
-          submitReview(1);
-        }}
-        disabled={submitting}
-        className="px-6 py-2 bg-green-500 text-white rounded-full disabled:bg-green-300 hover:bg-green-600 active:bg-green-700 cursor-pointer z-10"
-      >
-        👍 {submitting ? 'Submitting...' : 'Like'}
-      </button>
-    </div>
-  ), [submitting, submitReview]);
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -224,7 +193,7 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-500 text-white p-2 rounded disabled:bg-blue-300 hover:bg-blue-600 active:bg-blue-700 cursor-pointer"
+                className="w-full bg-blue-500 text-white p-2 rounded disabled:bg-blue-300 hover:bg-blue-600 active:bg-blue-700"
               >
                 {loading ? 'Logging in...' : 'Login'}
               </button>
@@ -238,7 +207,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600 active:bg-blue-700 cursor-pointer"
+              className="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600 active:bg-blue-700"
             >
               Start New Session
             </button>
@@ -251,28 +220,44 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="text-sm text-gray-500 hover:text-gray-700 active:text-gray-800 cursor-pointer z-10"
+                  className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded"
                 >
                   Logout
                 </button>
               </div>
               <p className="text-gray-600 mb-4">{currentProduct.product_name}</p>
-              <div className="relative pt-[100%] mb-4">
-                <div className="absolute top-0 left-0 w-full h-full">
-                  <Image
-                    src={currentProduct.product_primary_image_url}
-                    alt={currentProduct.product_name}
-                    fill
-                    style={{ objectFit: 'contain' }}
-                    className="pointer-events-none"
-                  />
-                </div>
+              <div className="relative h-96 mb-4">
+                <Image
+                  src={currentProduct.product_primary_image_url}
+                  alt={currentProduct.product_name}
+                  fill
+                  style={{ objectFit: 'contain' }}
+                  className="pointer-events-none"
+                  priority
+                />
               </div>
               <div className="flex justify-between items-center mb-4">
                 <span className="text-lg font-semibold">₹{currentProduct.selling_price}</span>
                 <span className="text-sm text-gray-500">{currentProduct.price_category}</span>
               </div>
-              <ProductReviewButtons />
+              <div className="flex justify-center gap-4 relative z-50">
+                <button
+                  type="button"
+                  onClick={(e) => handleReview(0, e)}
+                  disabled={submitting}
+                  className="px-6 py-2 bg-red-500 text-white rounded-full disabled:bg-red-300 hover:bg-red-600 active:bg-red-700"
+                >
+                  👎 {submitting ? 'Submitting...' : 'Dislike'}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleReview(1, e)}
+                  disabled={submitting}
+                  className="px-6 py-2 bg-green-500 text-white rounded-full disabled:bg-green-300 hover:bg-green-600 active:bg-green-700"
+                >
+                  👍 {submitting ? 'Submitting...' : 'Like'}
+                </button>
+              </div>
             </div>
           </div>
         )}
