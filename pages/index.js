@@ -20,7 +20,6 @@ export default function Home() {
 
   const handleAuth = async (e) => {
     e.preventDefault();
-    console.log('Login attempt started');
     setLoading(true);
     setError('');
 
@@ -33,12 +32,10 @@ export default function Home() {
         .single();
 
       if (userError || !userData) {
-        console.log('Login failed:', userError);
         setError('Invalid email or password');
         return;
       }
 
-      console.log('Login successful');
       setIsAuthenticated(true);
       fetchNextProduct();
     } catch (error) {
@@ -50,23 +47,17 @@ export default function Home() {
   };
 
   const fetchNextProduct = async () => {
-    console.log('Fetching next product');
     setLoading(true);
     setError('');
-    
     try {
       const { data: userReviews, error: reviewError } = await supabase
         .from('reviews')
         .select('scrape_id')
         .eq('reviewer_email', email);
 
-      if (reviewError) {
-        console.error('Error fetching user reviews:', reviewError);
-        throw reviewError;
-      }
+      if (reviewError) throw reviewError;
 
-      const reviewedIds = userReviews?.map(r => r.scrape_id).join(',') || '0';
-      console.log('Fetching product not in reviewed IDs:', reviewedIds);
+      const reviewedIds = userReviews?.map((r) => r.scrape_id).join(',') || '0';
 
       const { data: product, error: productError } = await supabase
         .from('input_products')
@@ -77,11 +68,9 @@ export default function Home() {
         .single();
 
       if (productError && productError.code !== 'PGRST116') {
-        console.error('Error fetching product:', productError);
         throw productError;
       }
 
-      console.log('Next product fetched:', product);
       setCurrentProduct(product || null);
     } catch (error) {
       console.error('Error fetching product:', error);
@@ -91,21 +80,9 @@ export default function Home() {
     }
   };
 
-  const handleLogout = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('Logout clicked');
-    setIsAuthenticated(false);
-    setCurrentProduct(null);
-    setEmail('');
-    setPassword('');
-  };
+  const submitReview = async (score) => {
+    console.log('Submit review clicked:', { score, email, productId: currentProduct?.scrape_id });
 
-  const handleReview = async (score, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('Review clicked with score:', score);
-    
     if (!currentProduct || submitting) {
       console.log('Preventing submission:', { currentProduct: !!currentProduct, submitting });
       return;
@@ -115,19 +92,15 @@ export default function Home() {
     setError('');
 
     try {
-      console.log('Submitting review:', {
-        scrape_id: currentProduct.scrape_id,
-        score,
-        email
-      });
-
       const { data, error: insertError } = await supabase
         .from('reviews')
-        .insert([{
-          scrape_id: currentProduct.scrape_id,
-          review_score: score,
-          reviewer_email: email
-        }])
+        .insert([
+          {
+            scrape_id: currentProduct.scrape_id,
+            review_score: score,
+            reviewer_email: email
+          }
+        ])
         .select();
 
       if (insertError) {
@@ -136,7 +109,8 @@ export default function Home() {
       }
 
       console.log('Review submitted successfully:', data);
-      
+
+      // Update review count in input_products table
       const { error: updateError } = await supabase
         .from('input_products')
         .update({ review_count: currentProduct.review_count + 1 })
@@ -147,7 +121,6 @@ export default function Home() {
         throw updateError;
       }
 
-      console.log('Product review count updated, fetching next product');
       await fetchNextProduct();
     } catch (error) {
       console.error('Error submitting review:', error);
@@ -193,7 +166,7 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-500 text-white p-2 rounded disabled:bg-blue-300 hover:bg-blue-600 active:bg-blue-700"
+                className="w-full bg-blue-500 text-white p-2 rounded disabled:bg-blue-300"
               >
                 {loading ? 'Logging in...' : 'Login'}
               </button>
@@ -205,61 +178,54 @@ export default function Home() {
           <div className="text-center">
             <h2 className="text-xl font-bold">No more products to review!</h2>
             <button
-              type="button"
               onClick={() => window.location.reload()}
-              className="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600 active:bg-blue-700"
+              className="mt-4 bg-blue-500 text-white p-2 rounded"
             >
               Start New Session
             </button>
           </div>
         ) : (
-          <div className="max-w-xl mx-auto bg-white rounded-lg shadow-lg">
-            <div className="p-4 flex flex-col">
-              <div className="flex justify-between items-center mb-4 relative z-10">
+          <div className="max-w-xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">{currentProduct.brand_name}</h2>
                 <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 rounded"
+                  onClick={() => setIsAuthenticated(false)}
+                  className="text-sm text-gray-500"
                 >
                   Logout
                 </button>
               </div>
-              
-              <p className="text-gray-600 mb-4 relative z-10">{currentProduct.product_name}</p>
+              <p className="text-gray-600 mb-4">{currentProduct.product_name}</p>
 
-              <div className="w-full h-[400px] relative mb-4">
-                <div className="absolute inset-0">
-                  <Image
-                    src={currentProduct.product_primary_image_url}
-                    alt={currentProduct.product_name}
-                    fill
-                    style={{ objectFit: 'contain' }}
-                    className="pointer-events-none"
-                    priority
-                  />
-                </div>
+              {/* Image container with fixed height and pointerEvents disabled on image */}
+              <div className="relative w-full h-64 mb-4">
+                <Image
+                  src={currentProduct.product_primary_image_url}
+                  alt={currentProduct.product_name}
+                  fill
+                  style={{ objectFit: 'contain', pointerEvents: 'none' }}
+                />
               </div>
 
-              <div className="flex justify-between items-center mb-4 relative z-10">
+              <div className="flex justify-between items-center mb-4">
                 <span className="text-lg font-semibold">₹{currentProduct.selling_price}</span>
                 <span className="text-sm text-gray-500">{currentProduct.price_category}</span>
               </div>
 
-              <div className="flex justify-center gap-4 relative z-10">
+              {/* Buttons container - clearly below the image and fully clickable */}
+              <div className="flex justify-center gap-4">
                 <button
-                  type="button"
-                  onClick={(e) => handleReview(0, e)}
+                  onClick={() => submitReview(0)}
                   disabled={submitting}
-                  className="px-6 py-2 bg-red-500 text-white rounded-full disabled:bg-red-300 hover:bg-red-600 active:bg-red-700"
+                  className="px-6 py-2 bg-red-500 text-white rounded-full disabled:bg-red-300"
                 >
                   👎 {submitting ? 'Submitting...' : 'Dislike'}
                 </button>
                 <button
-                  type="button"
-                  onClick={(e) => handleReview(1, e)}
+                  onClick={() => submitReview(1)}
                   disabled={submitting}
-                  className="px-6 py-2 bg-green-500 text-white rounded-full disabled:bg-green-300 hover:bg-green-600 active:bg-green-700"
+                  className="px-6 py-2 bg-green-500 text-white rounded-full disabled:bg-green-300"
                 >
                   👍 {submitting ? 'Submitting...' : 'Like'}
                 </button>
