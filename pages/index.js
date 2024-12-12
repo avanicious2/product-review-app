@@ -1,4 +1,3 @@
-// pages/index.js
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Head from 'next/head';
@@ -17,6 +16,7 @@ export default function Home() {
   const [currentProduct, setCurrentProduct] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -48,6 +48,7 @@ export default function Home() {
 
   const fetchNextProduct = async () => {
     setLoading(true);
+    setError('');
     try {
       const { data: userReviews, error: reviewError } = await supabase
         .from('reviews')
@@ -80,23 +81,50 @@ export default function Home() {
   };
 
   const submitReview = async (score) => {
+    console.log('Submit review clicked:', { score, email, productId: currentProduct?.scrape_id });
+    
+    if (!currentProduct || submitting) {
+      console.log('Preventing submission:', { currentProduct: !!currentProduct, submitting });
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+
     try {
-      console.log('Submitting review:', { score, product: currentProduct });
-      
-      const { error: insertError } = await supabase
+      const { data, error: insertError } = await supabase
         .from('reviews')
-        .insert({
+        .insert([{
           scrape_id: currentProduct.scrape_id,
           review_score: score,
           reviewer_email: email
-        });
+        }])
+        .select();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Insert error:', insertError);
+        throw insertError;
+      }
+
+      console.log('Review submitted successfully:', data);
       
-      fetchNextProduct();
+      // Update review count in input_products table
+      const { error: updateError } = await supabase
+        .from('input_products')
+        .update({ review_count: currentProduct.review_count + 1 })
+        .eq('scrape_id', currentProduct.scrape_id);
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+        throw updateError;
+      }
+
+      await fetchNextProduct();
     } catch (error) {
       console.error('Error submitting review:', error);
-      setError('Failed to submit review');
+      setError('Failed to submit review: ' + error.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -135,9 +163,10 @@ export default function Home() {
               />
               <button
                 type="submit"
-                className="w-full bg-blue-500 text-white p-2 rounded"
+                disabled={loading}
+                className="w-full bg-blue-500 text-white p-2 rounded disabled:bg-blue-300"
               >
-                Login
+                {loading ? 'Logging in...' : 'Login'}
               </button>
             </form>
           </div>
@@ -183,15 +212,17 @@ export default function Home() {
               <div className="flex justify-center gap-4">
                 <button
                   onClick={() => submitReview(0)}
-                  className="px-6 py-2 bg-red-500 text-white rounded-full"
+                  disabled={submitting}
+                  className="px-6 py-2 bg-red-500 text-white rounded-full disabled:bg-red-300"
                 >
-                  👎 Dislike
+                  👎 {submitting ? 'Submitting...' : 'Dislike'}
                 </button>
                 <button
                   onClick={() => submitReview(1)}
-                  className="px-6 py-2 bg-green-500 text-white rounded-full"
+                  disabled={submitting}
+                  className="px-6 py-2 bg-green-500 text-white rounded-full disabled:bg-green-300"
                 >
-                  👍 Like
+                  👍 {submitting ? 'Submitting...' : 'Like'}
                 </button>
               </div>
             </div>
