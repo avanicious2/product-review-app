@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Head from 'next/head';
 import Image from 'next/image';
@@ -17,6 +17,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [reviewCounter, setReviewCounter] = useState(0);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -81,12 +82,7 @@ export default function Home() {
   };
 
   const submitReview = async (score) => {
-    console.log('Submit review clicked:', { score, email, productId: currentProduct?.scrape_id });
-
-    if (!currentProduct || submitting) {
-      console.log('Preventing submission:', { currentProduct: !!currentProduct, submitting });
-      return;
-    }
+    if (!currentProduct || submitting) return;
 
     setSubmitting(true);
     setError('');
@@ -108,8 +104,6 @@ export default function Home() {
         throw insertError;
       }
 
-      console.log('Review submitted successfully:', data);
-
       // Update review count in input_products table
       const { error: updateError } = await supabase
         .from('input_products')
@@ -120,6 +114,9 @@ export default function Home() {
         console.error('Update error:', updateError);
         throw updateError;
       }
+
+      // Increment local review counter
+      setReviewCounter(reviewCounter + 1);
 
       await fetchNextProduct();
     } catch (error) {
@@ -185,49 +182,42 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          <div className="max-w-xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="max-w-sm mx-auto bg-white rounded-lg shadow-lg overflow-hidden flex flex-col">
+            {/* Image container with a fixed height of 75% viewport height */}
+            <div className="relative w-full" style={{ height: '75vh' }}>
+              <Image
+                src={currentProduct.product_primary_image_url}
+                alt={currentProduct.product_name}
+                fill
+                style={{ objectFit: 'contain', pointerEvents: 'none' }}
+              />
+            </div>
+
+            {/* Info Section */}
             <div className="p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">{currentProduct.brand_name}</h2>
-                <button
-                  onClick={() => setIsAuthenticated(false)}
-                  className="text-sm text-gray-500"
-                >
-                  Logout
-                </button>
+              <div className="text-sm text-gray-500 mb-2">
+                products reviewed: {reviewCounter}
               </div>
-              <p className="text-gray-600 mb-4">{currentProduct.product_name}</p>
-
-              {/* Image container with fixed height and pointerEvents disabled on image */}
-              <div className="relative w-full h-64 mb-4">
-                <Image
-                  src={currentProduct.product_primary_image_url}
-                  alt={currentProduct.product_name}
-                  fill
-                  style={{ objectFit: 'contain', pointerEvents: 'none' }}
-                />
+              <div className="text-lg font-medium text-gray-800">
+                {currentProduct.brand_name} | {currentProduct.product_name}
               </div>
+              <div className="font-bold text-xl mt-2">₹{currentProduct.selling_price}</div>
 
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-lg font-semibold">₹{currentProduct.selling_price}</span>
-                <span className="text-sm text-gray-500">{currentProduct.price_category}</span>
-              </div>
-
-              {/* Buttons container - clearly below the image and fully clickable */}
-              <div className="flex justify-center gap-4">
+              {/* Buttons at the bottom: Dislike on left (red), Like on right (green) */}
+              <div className="flex justify-between items-center mt-4">
                 <button
                   onClick={() => submitReview(0)}
                   disabled={submitting}
                   className="px-6 py-2 bg-red-500 text-white rounded-full disabled:bg-red-300"
                 >
-                  👎 {submitting ? 'Submitting...' : 'Dislike'}
+                  👎 {submitting ? '...' : 'Dislike'}
                 </button>
                 <button
                   onClick={() => submitReview(1)}
                   disabled={submitting}
                   className="px-6 py-2 bg-green-500 text-white rounded-full disabled:bg-green-300"
                 >
-                  👍 {submitting ? 'Submitting...' : 'Like'}
+                  👍 {submitting ? '...' : 'Like'}
                 </button>
               </div>
             </div>
