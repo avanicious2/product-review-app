@@ -18,17 +18,101 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Rest of the handlers remain the same...
+  // Authentication handler
   const handleAuth = async (e) => {
-    // ... same code as before
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      // Check if user exists in user_identities
+      const { data: userData, error: userError } = await supabase
+        .from('user_identities')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password)
+        .single();
+
+      if (userError || !userData) {
+        setError('Invalid email or password');
+        return;
+      }
+
+      setIsAuthenticated(true);
+      fetchNextProduct();
+    } catch (error) {
+      console.error('Authentication error:', error);
+      setError('An error occurred during authentication');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Fetch next unreviewed product
   const fetchNextProduct = async () => {
-    // ... same code as before
+    console.log("Fetching next product...");
+    setLoading(true);
+    try {
+      // First, get products that have been reviewed less than 5 times
+      const { data: reviewCounts, error: countError } = await supabase
+        .from('reviews')
+        .select('scrape_id, count(*)')
+        .group('scrape_id')
+        .having('count(*)', 'lt', 5);
+
+      if (countError) throw countError;
+
+      // Get products reviewed by current user
+      const { data: userReviews, error: reviewError } = await supabase
+        .from('reviews')
+        .select('scrape_id')
+        .eq('reviewer_email', email);
+
+      if (reviewError) throw reviewError;
+
+      // Create sets for efficient lookup
+      const reviewedIds = new Set(userReviews?.map(r => r.scrape_id) || []);
+      const validProductIds = new Set(reviewCounts?.map(r => r.scrape_id) || []);
+
+      // Get one product that hasn't been reviewed by user and hasn't reached 5 reviews
+      const { data: products, error: productError } = await supabase
+        .from('input_products')
+        .select('*')
+        .not('scrape_id', 'in', `(${Array.from(reviewedIds).join(',')})`)
+        .filter('scrape_id', 'in', `(${Array.from(validProductIds).join(',')})`)
+        .limit(1);
+
+      if (productError) throw productError;
+
+      setCurrentProduct(products?.[0] || null);
+    } catch (error) {
+      console.error('Error fetching product:', error);
+      setError('Error loading next product');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Submit review
   const submitReview = async (score) => {
-    // ... same code as before
+    console.log("Submitting review:", { score, product: currentProduct });
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .insert({
+          scrape_id: currentProduct.scrape_id,
+          review_score: score,
+          reviewer_email: email
+        });
+
+      if (error) throw error;
+      
+      console.log("Review submitted successfully");
+      fetchNextProduct();
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      setError('Error submitting review');
+    }
   };
 
   return (
@@ -39,9 +123,41 @@ export default function Home() {
       </Head>
 
       <main className="container mx-auto px-4 py-8">
-        {/* Authentication form and error message sections remain the same */}
+        {error && (
+          <div className="max-w-md mx-auto mb-4 p-4 bg-red-100 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+
         {!isAuthenticated ? (
-          // ... same login form as before
+          <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+            <h1 className="text-2xl font-bold mb-4">Login to Review Products</h1>
+            <form onSubmit={handleAuth}>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                className="w-full p-2 border rounded mb-4"
+                required
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="w-full p-2 border rounded mb-4"
+                required
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
+              >
+                {loading ? 'Loading...' : 'Login'}
+              </button>
+            </form>
+          </div>
         ) : loading ? (
           <div className="text-center">Loading...</div>
         ) : !currentProduct ? (
@@ -80,7 +196,6 @@ export default function Home() {
                   />
                 </div>
               </div>
-              {/* Rest of the UI remains the same */}
               <div className="flex justify-between items-center mb-4">
                 <span className="text-lg font-semibold">₹{currentProduct.selling_price}</span>
                 <span className="text-sm text-gray-500">{currentProduct.price_category}</span>
