@@ -73,19 +73,27 @@ export default function Home() {
         .from('reviews')
         .select('scrape_id')
         .eq('reviewer_email', email);
-
+  
       if (reviewError) throw reviewError;
       
-      const reviewedIds = userReviews?.map(r => r.scrape_id).join(',') || '0';
+      // Instead of string concatenation, use .in() with array
+      const reviewedIds = userReviews?.map(r => r.scrape_id) || [];
       
-      const { data: products, error: productError } = await supabase
+      // Using .in() operator properly
+      const query = supabase
         .from('input_products')
         .select('*')
         .lt('review_count', 5)
-        .not('scrape_id', 'in', `(${reviewedIds})`)
         .order('review_count', { ascending: false })
         .limit(QUEUE_THRESHOLD);
-
+  
+      // Only add not-in condition if there are reviewed products
+      if (reviewedIds.length > 0) {
+        query.not('scrape_id', 'in', reviewedIds);
+      }
+  
+      const { data: products, error: productError } = await query;
+  
       if (productError) throw productError;
       
       return products || [];
