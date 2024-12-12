@@ -1,6 +1,10 @@
 // pages/_app.js
-import { ChakraProvider } from '@chakra-ui/react'
-import { theme } from '@chakra-ui/theme'
+import { ChakraProvider, createTheme } from '@chakra-ui/react'
+
+// Create a theme instance
+const theme = createTheme({
+  // your theme customization (if needed)
+})
 
 function MyApp({ Component, pageProps }) {
   return (
