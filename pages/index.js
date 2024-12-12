@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Head from 'next/head';
 import Image from 'next/image';
@@ -88,7 +88,7 @@ export default function Home() {
     setError('');
 
     try {
-      const { data, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('reviews')
         .insert([
           {
@@ -116,7 +116,7 @@ export default function Home() {
       }
 
       // Increment local review counter
-      setReviewCounter(reviewCounter + 1);
+      setReviewCounter((prev) => prev + 1);
 
       await fetchNextProduct();
     } catch (error) {
