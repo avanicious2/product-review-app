@@ -69,21 +69,8 @@ export default function Home() {
     setError('');
     
     try {
-      // Using PostgreSQL syntax to filter with EXISTS clause
       const { data: products, error: productError } = await supabase
-        .from('input_products')
-        .select('*')
-        .lt('review_count', 5)
-        .not(
-          'exists', 
-          supabase
-            .from('reviews')
-            .select('1')  // Just need to check existence, no need to select full row
-            .eq('reviewer_email', email)
-            .eq('reviews.scrape_id', 'input_products.scrape_id')
-        )
-        .order('review_count', { ascending: false })
-        .limit(QUEUE_THRESHOLD);
+        .rpc('get_unreviewed_products', { user_email: email, batch_size: QUEUE_THRESHOLD });
   
       if (productError) throw productError;
       
