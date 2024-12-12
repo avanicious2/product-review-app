@@ -52,38 +52,51 @@ export default function Home() {
   console.log("Fetching next product...");
   setLoading(true);
   try {
-    // First get products already reviewed by current user
-    const { data: userReviews, error: reviewError } = await supabase
+    // Get review counts for all products in a subquery
+    const { data: reviewData, error: reviewError } = await supabase
+      .from('reviews')
+      .select(`
+        scrape_id,
+        review_count:count(*)
+      `)
+      .group('scrape_id');
+
+    if (reviewError) throw reviewError;
+
+    // Get the products already reviewed by current user
+    const { data: userReviews, error: userReviewError } = await supabase
       .from('reviews')
       .select('scrape_id')
       .eq('reviewer_email', email);
 
-    if (reviewError) throw reviewError;
+    if (userReviewError) throw userReviewError;
 
-    // Get products reviewed 5 or more times
-    const { data: fullReviews, error: fullReviewsError } = await supabase
-      .from('reviews')
-      .select('scrape_id, count')
-      .select('scrape_id')
-      .in('count', ['5', '6', '7', '8', '9', '10']); // Example of handling counts
+    // Create a set of scrape_ids that either:
+    // 1. Have been reviewed by the current user OR
+    // 2. Have 5 or more reviews
+    const excludedIds = new Set([
+      ...userReviews.map(r => r.scrape_id),
+      ...reviewData.filter(r => r.review_count >= 5).map(r => r.scrape_id)
+    ]);
 
-    if (fullReviewsError) throw fullReviewsError;
+    // Convert to string for the query, if empty use '0' to prevent SQL error
+    const excludedIdsString = excludedIds.size > 0 
+      ? Array.from(excludedIds).join(',') 
+      : '0';
 
-    // Convert results to arrays safely
-    const reviewedByUserIds = userReviews ? userReviews.map(r => r.scrape_id).join(',') : '0';
-    const fullyReviewedIds = fullReviews ? fullReviews.map(r => r.scrape_id).join(',') : '0';
-
-    // Get one product that hasn't been reviewed by user and hasn't got 5 reviews
+    // Get one product that hasn't been excluded
     const { data: products, error: productError } = await supabase
       .from('input_products')
       .select('*')
-      .not('scrape_id', 'in', `(${reviewedByUserIds})`)
-      .not('scrape_id', 'in', `(${fullyReviewedIds})`)
-      .limit(1);
+      .not('scrape_id', 'in', `(${excludedIdsString})`)
+      .limit(1)
+      .single();
 
-    if (productError) throw productError;
+    if (productError && productError.code !== 'PGRST116') { // Ignore "no rows returned" error
+      throw productError;
+    }
 
-    setCurrentProduct(products?.[0] || null);
+    setCurrentProduct(products || null);
   } catch (error) {
     console.error('Error fetching product:', error);
     setError('Error loading next product');
