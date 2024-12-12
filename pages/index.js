@@ -8,7 +8,8 @@ import {
   VStack,
   HStack,
   Button,
-  Text
+  Text,
+  Container
 } from '@chakra-ui/react';
 
 // Initialize Supabase client
@@ -129,9 +130,15 @@ export default function Home() {
   };
 
   return (
-    <Box minH="100vh" bg="gray.100" p={4}>
+    <Box 
+      minH="100dvh" 
+      bg="gray.100" 
+      position="relative"
+      pb="env(safe-area-inset-bottom)"
+    >
       <Head>
         <title>Product Review App</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
 
       {error && (
@@ -141,93 +148,123 @@ export default function Home() {
       )}
 
       {!isAuthenticated ? (
-        <Box maxW="md" mx="auto" bg="white" p={6} borderRadius="lg" boxShadow="lg" mt={10}>
-          <Text fontSize="2xl" fontWeight="bold" mb={4}>Login to Review Products</Text>
-          <form onSubmit={handleAuth}>
-            <Box mb={4}>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                required
-              />
-            </Box>
-            <Box mb={4}>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                required
-              />
-            </Box>
-            <Button type="submit" isDisabled={loading} w="full" colorScheme="blue">
-              {loading ? 'Logging in...' : 'Login'}
-            </Button>
-          </form>
-        </Box>
+        <Container maxW="md" py={10}>
+          <Box bg="white" p={6} borderRadius="lg" boxShadow="lg">
+            <Text fontSize="2xl" fontWeight="bold" mb={4}>Login to Review Products</Text>
+            <form onSubmit={handleAuth}>
+              <Box mb={4}>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  required
+                />
+              </Box>
+              <Box mb={4}>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  required
+                />
+              </Box>
+              <Button type="submit" isDisabled={loading} w="full" colorScheme="blue">
+                {loading ? 'Logging in...' : 'Login'}
+              </Button>
+            </form>
+          </Box>
+        </Container>
       ) : loading ? (
-        <VStack justify="center" align="center" h="100vh">
+        <VStack justify="center" align="center" h="100dvh">
           <Text>Loading...</Text>
         </VStack>
       ) : !currentProduct ? (
-        <VStack justify="center" align="center" h="100vh">
+        <VStack justify="center" align="center" h="100dvh">
           <Text fontSize="xl" fontWeight="bold">No more products to review!</Text>
           <Button mt={4} colorScheme="blue" onClick={() => window.location.reload()}>
             Start New Session
           </Button>
         </VStack>
       ) : (
-        <Box maxW="sm" mx="auto" bg="white" borderRadius="lg" boxShadow="lg" overflow="hidden" display="flex" flexDirection="column" height="100vh">
-          {/* Image Section (top 65%) */}
-          <Box flex="0 0 65%" position="relative">
-            <Image
-              src={currentProduct.product_primary_image_url}
-              alt={currentProduct.product_name}
-              fill
-              style={{ objectFit: 'contain', pointerEvents: 'none' }}
-            />
+        <Box 
+          maxW="sm" 
+          mx="auto" 
+          h="100dvh"
+          display="flex"
+          flexDirection="column"
+          position="relative"
+        >
+          {/* Content Container */}
+          <Box 
+            flex="1"
+            overflow="auto"
+            bg="white"
+            borderRadius="lg"
+            boxShadow="lg"
+          >
+            {/* Image Section */}
+            <Box position="relative" pt="100%">
+              <Image
+                src={currentProduct.product_primary_image_url}
+                alt={currentProduct.product_name}
+                fill
+                style={{ objectFit: 'contain', pointerEvents: 'none' }}
+              />
+            </Box>
+
+            {/* Info Section */}
+            <Box p={4}>
+              <Text fontSize="sm" color="gray.500" mb={1}>products reviewed: {reviewCounter}</Text>
+              <Text fontSize="lg" fontWeight="medium" color="gray.800">
+                {currentProduct.brand_name} | {currentProduct.product_name}
+              </Text>
+              <Text fontSize="xl" fontWeight="bold" mt={1}>₹{currentProduct.selling_price}</Text>
+            </Box>
           </Box>
 
-          {/* Info Section (middle 15%) */}
-          <Box flex="0 0 15%" p={4}>
-            <Text fontSize="sm" color="gray.500" mb={1}>products reviewed: {reviewCounter}</Text>
-            <Text fontSize="lg" fontWeight="medium" color="gray.800">
-              {currentProduct.brand_name} | {currentProduct.product_name}
-            </Text>
-            <Text fontSize="xl" fontWeight="bold" mt={1}>₹{currentProduct.selling_price}</Text>
+          {/* Fixed Button Section */}
+          <Box
+            position="sticky"
+            bottom={0}
+            left={0}
+            right={0}
+            bg="white"
+            borderTopWidth={1}
+            borderColor="gray.200"
+            p={4}
+            pb="env(safe-area-inset-bottom)"
+          >
+            <HStack justify="space-between" align="center">
+              <Button
+                onClick={() => submitReview(0)}
+                isDisabled={submitting}
+                colorScheme="red"
+                size="lg"
+                borderRadius="full"
+                flex={1}
+                py={6}
+                fontSize="xl"
+              >
+                👎 {submitting ? '...' : 'Dislike'}
+              </Button>
+              <Button
+                onClick={() => submitReview(1)}
+                isDisabled={submitting}
+                colorScheme="green"
+                size="lg"
+                borderRadius="full"
+                flex={1}
+                py={6}
+                fontSize="xl"
+              >
+                👍 {submitting ? '...' : 'Like'}
+              </Button>
+            </HStack>
           </Box>
-
-          {/* Buttons Section (bottom 20%) */}
-          <HStack flex="0 0 20%" p={4} justify="space-between" align="center">
-            <Button
-              onClick={() => submitReview(0)}
-              isDisabled={submitting}
-              colorScheme="red"
-              size="lg"
-              borderRadius="full"
-              fontWeight="bold"
-              px={8} py={6}
-              fontSize="xl"
-            >
-              👎 {submitting ? '...' : 'Dislike'}
-            </Button>
-            <Button
-              onClick={() => submitReview(1)}
-              isDisabled={submitting}
-              colorScheme="green"
-              size="lg"
-              borderRadius="full"
-              fontWeight="bold"
-              px={8} py={6}
-              fontSize="xl"
-            >
-              👍 {submitting ? '...' : 'Like'}
-            </Button>
-          </HStack>
         </Box>
       )}
     </Box>
