@@ -69,8 +69,25 @@ export default function Home() {
     setError('');
     
     try {
+      // Get IDs of products currently in queue to exclude them
+      const queueIds = productQueue.map(p => p.scrape_id);
+      
       const { data: products, error: productError } = await supabase
-        .rpc('get_unreviewed_products', { user_email: email, batch_size: QUEUE_THRESHOLD });
+        .from('input_products')
+        .select('*')
+        .lt('review_count', 5)
+        .not(
+          'exists', 
+          supabase
+            .from('reviews')
+            .select('1')
+            .eq('reviewer_email', email)
+            .eq('reviews.scrape_id', 'input_products.scrape_id')
+        )
+        // Also exclude products currently in queue
+        .not('scrape_id', 'in', queueIds)
+        .order('review_count', { ascending: false })
+        .limit(QUEUE_THRESHOLD);
   
       if (productError) throw productError;
       
