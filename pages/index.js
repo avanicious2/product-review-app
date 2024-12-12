@@ -18,14 +18,12 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Authentication handler
   const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      // Check if user exists in user_identities
       const { data: userData, error: userError } = await supabase
         .from('user_identities')
         .select('*')
@@ -42,93 +40,70 @@ export default function Home() {
       fetchNextProduct();
     } catch (error) {
       console.error('Authentication error:', error);
-      setError('An error occurred during authentication');
+      setError('Authentication failed');
     } finally {
       setLoading(false);
     }
   };
 
   const fetchNextProduct = async () => {
-  console.log("Fetching next product...");
-  setLoading(true);
-  try {
-    // Get products already reviewed by current user
-    const { data: userReviews, error: reviewError } = await supabase
-      .from('reviews')
-      .select('scrape_id')
-      .eq('reviewer_email', email);
+    setLoading(true);
+    try {
+      const { data: userReviews, error: reviewError } = await supabase
+        .from('reviews')
+        .select('scrape_id')
+        .eq('reviewer_email', email);
 
-    if (reviewError) throw reviewError;
+      if (reviewError) throw reviewError;
 
-    // Get excluded product IDs or use 0 if none
-    const reviewedIds = userReviews?.map(r => r.scrape_id).join(',') || '0';
+      const reviewedIds = userReviews?.map(r => r.scrape_id).join(',') || '0';
 
-    // Get one product that:
-    // 1. Has less than 5 reviews
-    // 2. Hasn't been reviewed by current user
-    const { data: product, error: productError } = await supabase
-      .from('input_products')
-      .select('*')
-      .lt('review_count', 5)
-      .not('scrape_id', 'in', `(${reviewedIds})`)
-      .limit(1)
-      .single();
+      const { data: product, error: productError } = await supabase
+        .from('input_products')
+        .select('*')
+        .lt('review_count', 5)
+        .not('scrape_id', 'in', `(${reviewedIds})`)
+        .limit(1)
+        .single();
 
-    if (productError && productError.code !== 'PGRST116') { // Ignore "no rows returned" error
-      throw productError;
+      if (productError && productError.code !== 'PGRST116') {
+        throw productError;
+      }
+
+      setCurrentProduct(product || null);
+    } catch (error) {
+      console.error('Error fetching product:', error);
+      setError('Failed to load next product');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    setCurrentProduct(product || null);
-  } catch (error) {
-    console.error('Error fetching product:', error);
-    setError('Error loading next product');
-  } finally {
-    setLoading(false);
-  }
-};
-
-  // Submit review
   const submitReview = async (score) => {
-  console.log("Submitting review:", { score, product: currentProduct });
-  try {
-    // Check current review count before submitting
-    const { data: product, error: checkError } = await supabase
-      .from('input_products')
-      .select('review_count')
-      .eq('scrape_id', currentProduct.scrape_id)
-      .single();
+    try {
+      console.log('Submitting review:', { score, product: currentProduct });
+      
+      const { error: insertError } = await supabase
+        .from('reviews')
+        .insert({
+          scrape_id: currentProduct.scrape_id,
+          review_score: score,
+          reviewer_email: email
+        });
 
-    if (checkError) throw checkError;
-
-    if (product.review_count >= 5) {
-      setError('This product has already reached maximum reviews');
+      if (insertError) throw insertError;
+      
       fetchNextProduct();
-      return;
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      setError('Failed to submit review');
     }
-
-    const { error } = await supabase
-      .from('reviews')
-      .insert({
-        scrape_id: currentProduct.scrape_id,
-        review_score: score,
-        reviewer_email: email
-      });
-
-    if (error) throw error;
-    
-    console.log("Review submitted successfully");
-    fetchNextProduct();
-  } catch (error) {
-    console.error('Error submitting review:', error);
-    setError('Error submitting review');
-  }
-};
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
       <Head>
         <title>Product Review App</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <main className="container mx-auto px-4 py-8">
@@ -160,10 +135,9 @@ export default function Home() {
               />
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
+                className="w-full bg-blue-500 text-white p-2 rounded"
               >
-                {loading ? 'Loading...' : 'Login'}
+                Login
               </button>
             </form>
           </div>
@@ -174,7 +148,7 @@ export default function Home() {
             <h2 className="text-xl font-bold">No more products to review!</h2>
             <button
               onClick={() => window.location.reload()}
-              className="mt-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+              className="mt-4 bg-blue-500 text-white p-2 rounded"
             >
               Start New Session
             </button>
@@ -186,7 +160,7 @@ export default function Home() {
                 <h2 className="text-xl font-bold">{currentProduct.brand_name}</h2>
                 <button
                   onClick={() => setIsAuthenticated(false)}
-                  className="text-sm text-gray-500 hover:text-gray-700"
+                  className="text-sm text-gray-500"
                 >
                   Logout
                 </button>
@@ -199,9 +173,6 @@ export default function Home() {
                     alt={currentProduct.product_name}
                     fill
                     style={{ objectFit: 'contain' }}
-                    onError={(e) => {
-                      e.currentTarget.src = 'https://via.placeholder.com/400?text=Image+Not+Found';
-                    }}
                   />
                 </div>
               </div>
@@ -212,13 +183,13 @@ export default function Home() {
               <div className="flex justify-center gap-4">
                 <button
                   onClick={() => submitReview(0)}
-                  className="px-6 py-2 bg-red-500 text-white rounded-full hover:bg-red-600"
+                  className="px-6 py-2 bg-red-500 text-white rounded-full"
                 >
                   👎 Dislike
                 </button>
                 <button
                   onClick={() => submitReview(1)}
-                  className="px-6 py-2 bg-green-500 text-white rounded-full hover:bg-green-600"
+                  className="px-6 py-2 bg-green-500 text-white rounded-full"
                 >
                   👍 Like
                 </button>
