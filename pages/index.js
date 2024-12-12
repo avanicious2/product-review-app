@@ -133,46 +133,48 @@ export default function Home() {
         <title>Product Review App</title>
       </Head>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="w-full h-screen flex flex-col">
         {error && (
-          <div className="max-w-md mx-auto mb-4 p-4 bg-red-100 text-red-700 rounded">
+          <div className="max-w-md mx-auto mt-4 p-4 bg-red-100 text-red-700 rounded">
             {error}
           </div>
         )}
 
         {!isAuthenticated ? (
-          <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
-            <h1 className="text-2xl font-bold mb-4">Login to Review Products</h1>
-            <form onSubmit={handleAuth}>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="w-full p-2 border rounded mb-4"
-                required
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                className="w-full p-2 border rounded mb-4"
-                required
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-500 text-white p-2 rounded disabled:bg-blue-300"
-              >
-                {loading ? 'Logging in...' : 'Login'}
-              </button>
-            </form>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+              <h1 className="text-2xl font-bold mb-4">Login to Review Products</h1>
+              <form onSubmit={handleAuth}>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className="w-full p-2 border rounded mb-4"
+                  required
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full p-2 border rounded mb-4"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-blue-500 text-white p-2 rounded disabled:bg-blue-300"
+                >
+                  {loading ? 'Logging in...' : 'Login'}
+                </button>
+              </form>
+            </div>
           </div>
         ) : loading ? (
-          <div className="text-center">Loading...</div>
+          <div className="flex-1 flex items-center justify-center text-center">Loading...</div>
         ) : !currentProduct ? (
-          <div className="text-center">
+          <div className="flex-1 flex flex-col items-center justify-center text-center">
             <h2 className="text-xl font-bold">No more products to review!</h2>
             <button
               onClick={() => window.location.reload()}
@@ -182,9 +184,9 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          <div className="max-w-sm mx-auto bg-white rounded-lg shadow-lg overflow-hidden flex flex-col">
-            {/* Image container with a fixed height of 75% viewport height */}
-            <div className="relative w-full" style={{ height: '75vh' }}>
+          <div className="flex-1 flex flex-col bg-white rounded-lg shadow-lg overflow-hidden">
+            {/* Image Section - 65% of screen height */}
+            <div className="relative" style={{ height: '65vh' }}>
               <Image
                 src={currentProduct.product_primary_image_url}
                 alt={currentProduct.product_name}
@@ -193,33 +195,34 @@ export default function Home() {
               />
             </div>
 
-            {/* Info Section */}
-            <div className="p-4">
-              <div className="text-sm text-gray-500 mb-2">
-                products reviewed: {reviewCounter}
-              </div>
+            {/* Info Section - 15% of screen height */}
+            <div className="px-4 py-2" style={{ height: '15vh' }}>
+              <p className="text-sm text-gray-500 mb-1">products reviewed: {reviewCounter}</p>
               <div className="text-lg font-medium text-gray-800">
                 {currentProduct.brand_name} | {currentProduct.product_name}
               </div>
-              <div className="font-bold text-xl mt-2">₹{currentProduct.selling_price}</div>
+              <div className="font-bold text-xl mt-1">₹{currentProduct.selling_price}</div>
+            </div>
 
-              {/* Buttons at the bottom: Dislike on left (red), Like on right (green) */}
-              <div className="flex justify-between items-center mt-4">
-                <button
-                  onClick={() => submitReview(0)}
-                  disabled={submitting}
-                  className="px-6 py-2 bg-red-500 text-white rounded-full disabled:bg-red-300"
-                >
-                  👎 {submitting ? '...' : 'Dislike'}
-                </button>
-                <button
-                  onClick={() => submitReview(1)}
-                  disabled={submitting}
-                  className="px-6 py-2 bg-green-500 text-white rounded-full disabled:bg-green-300"
-                >
-                  👍 {submitting ? '...' : 'Like'}
-                </button>
-              </div>
+            {/* Buttons Section - 20% of screen height */}
+            <div
+              className="flex items-center justify-between px-4"
+              style={{ height: '20vh' }}
+            >
+              <button
+                onClick={() => submitReview(0)}
+                disabled={submitting}
+                className="bg-red-500 text-white rounded-full text-xl font-bold px-8 py-3 disabled:bg-red-300"
+              >
+                👎 {submitting ? '...' : 'Dislike'}
+              </button>
+              <button
+                onClick={() => submitReview(1)}
+                disabled={submitting}
+                className="bg-green-500 text-white rounded-full text-xl font-bold px-8 py-3 disabled:bg-green-300"
+              >
+                👍 {submitting ? '...' : 'Like'}
+              </button>
             </div>
           </div>
         )}
