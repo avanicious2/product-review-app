@@ -63,24 +63,22 @@ export default function Home() {
     // Get products reviewed 5 or more times
     const { data: fullReviews, error: fullReviewsError } = await supabase
       .from('reviews')
-      .select('scrape_id, count(*)')
-      .group('scrape_id')
-      .having('count(*)', '>=', 5);
+      .select('scrape_id, count')
+      .select('scrape_id')
+      .in('count', ['5', '6', '7', '8', '9', '10']); // Example of handling counts
 
     if (fullReviewsError) throw fullReviewsError;
 
-    // Create sets for efficient lookup
-    const reviewedByUser = new Set(userReviews?.map(r => r.scrape_id) || []);
-    const fullyReviewed = new Set(fullReviews?.map(r => r.scrape_id) || []);
+    // Convert results to arrays safely
+    const reviewedByUserIds = userReviews ? userReviews.map(r => r.scrape_id).join(',') : '0';
+    const fullyReviewedIds = fullReviews ? fullReviews.map(r => r.scrape_id).join(',') : '0';
 
-    // Get one product that:
-    // 1. Hasn't been reviewed by current user
-    // 2. Hasn't received 5 reviews yet
+    // Get one product that hasn't been reviewed by user and hasn't got 5 reviews
     const { data: products, error: productError } = await supabase
       .from('input_products')
       .select('*')
-      .not('scrape_id', 'in', `(${Array.from(reviewedByUser).join(',') || '0'})`)
-      .not('scrape_id', 'in', `(${Array.from(fullyReviewed).join(',') || '0'})`)
+      .not('scrape_id', 'in', `(${reviewedByUserIds})`)
+      .not('scrape_id', 'in', `(${fullyReviewedIds})`)
       .limit(1);
 
     if (productError) throw productError;
