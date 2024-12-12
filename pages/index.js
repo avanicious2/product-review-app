@@ -69,16 +69,15 @@ export default function Home() {
     setError('');
     
     try {
-      // First, get a list of products that need reviews using a JOIN
+      // Get a list of products that haven't been reviewed by the current user
       const { data: products, error: productError } = await supabase
-        .from('input_products as p')
+        .from('input_products')
         .select(`
           *,
-          reviews!inner(reviewer_email)
+          reviews!left(reviewer_email)
         `)
         .lt('review_count', 5)
-        .not('scrape_id', 'in', queueIds)
-        .is('reviews.reviewer_email', null)
+        .not('reviews.reviewer_email', 'eq', email)
         .order('review_count', { ascending: false })
         .limit(QUEUE_THRESHOLD);
   
