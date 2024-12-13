@@ -1,6 +1,6 @@
 // pages/api/submit-review.js
 import db from '../../lib/db';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export default async function handler(req, res) {
   console.log('Submit review API called');
@@ -37,12 +37,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'You have already reviewed this product' });
     }
 
-    // Insert new review with a UUID
+    // Generate UUID for the new review
+    const reviewId = randomUUID();
+    console.log('Generated UUID for review:', reviewId);
+
+    // Insert new review
     const result = await db.query(
       `INSERT INTO reviews 
        (id, scrape_id, review_score, reviewer_email, created_at) 
        VALUES (?, ?, ?, ?, NOW())`,
-      [uuidv4(), scrape_id, review_score, reviewer_email]
+      [reviewId, scrape_id, review_score, reviewer_email]
     );
 
     console.log('Review successfully inserted:', result);
