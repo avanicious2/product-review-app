@@ -62,28 +62,24 @@ export default function Home() {
     setError('');
     
     try {
-      // Using a single query with subqueries to get unreviewed products from user's batch
+      // First get user's batch number
+      const { data: userData, error: userError } = await supabase
+        .from('user_identities')
+        .select('batch_number')
+        .eq('email', email)
+        .single();
+  
+      if (userError) throw userError;
+  
+      // Then get unreviewed products from that batch
       const { data: products, error: productError } = await supabase
         .from('input_products')
-        .select('*')
-        .filter('scrape_id', 'in', (
-          supabase
-            .from('input_products')
-            .select('scrape_id')
-            .eq('assigned_batch', (
-              supabase
-                .from('user_identities')
-                .select('batch_number')
-                .eq('email', email)
-                .single()
-            ))
-            .not('scrape_id', 'in', (
-              supabase
-                .from('reviews')
-                .select('scrape_id')
-                .eq('reviewer_email', email)
-            ))
-        ))
+        .select(`
+          *,
+          reviews!left(review_score)
+        `)
+        .eq('assigned_batch', userData.batch_number)
+        .is('reviews.review_score', null)
         .order('scrape_id')
         .limit(2);
   
