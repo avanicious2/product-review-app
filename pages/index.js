@@ -101,6 +101,9 @@ export default function Home() {
   
       console.log('Review submitted successfully:', data);
   
+      // Increment review counter after successful submission
+      setReviewCounter(prevCount => prevCount + 1);
+
       // Handle next product or fetch more products
       if (currentIndex < products.length - 1) {
         console.log('Fetching next product...');
