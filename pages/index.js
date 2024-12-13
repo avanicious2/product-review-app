@@ -101,6 +101,7 @@ export default function Home() {
   };
 
   const fetchNextProduct = async () => {
+    console.log("fetching next product")
     await ensureProductQueue();
     
     if (productQueue.length === 0) {
