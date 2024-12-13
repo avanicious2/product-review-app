@@ -71,26 +71,21 @@ export default function Home() {
   
       if (userError) throw userError;
   
-      // Get all unreviewed products from user's batch, max 2
-      const { data: allProducts, error: productError } = await supabase
+      // Get products that haven't been reviewed by this user
+      const { data: products, error: productError } = await supabase
         .from('input_products')
         .select(`
           *,
-          reviews!left(reviewer_email)
+          reviews!inner(reviewer_email)
         `)
         .eq('assigned_batch', userData.batch_number)
-        .not('reviews.reviewer_email', 'eq', email)
+        .neq('reviews.reviewer_email', email)
         .order('scrape_id')
         .limit(2);
   
       if (productError) throw productError;
-  
-      // Filter out any products that have been reviewed
-      const unreviewed = allProducts.filter(product => 
-        !product.reviews || product.reviews.length === 0
-      );
       
-      setProducts(unreviewed || []);
+      setProducts(products || []);
       setCurrentIndex(0);
     } catch (err) {
       console.error('Error fetching products:', err);
