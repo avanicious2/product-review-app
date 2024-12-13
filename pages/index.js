@@ -73,38 +73,43 @@ export default function Home() {
   };
 
   const submitReview = async (score) => {
-    if (submitting) return;
-
+    if (submitting) return; // Prevent multiple submissions
     setSubmitting(true);
     setError('');
-
+  
     try {
       const currentProduct = products[currentIndex];
       
+      console.log('Submitting review for product:', currentProduct);
+  
+      // Submit review
       const response = await fetch('/api/submit-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scrape_id: currentProduct.scrape_id,
           review_score: score,
-          reviewer_email: email
-        })
+          reviewer_email: email,
+        }),
       });
-
+  
       const data = await response.json();
-
+  
       if (!response.ok) {
         throw new Error(data.error || 'Failed to submit review');
       }
-
-      setReviewCounter(prev => prev + 1);
-      
+  
+      console.log('Review submitted successfully:', data);
+  
+      // Handle next product or fetch more products
       if (currentIndex < products.length - 1) {
-        setCurrentIndex(currentIndex + 1);
+        console.log('Fetching next product...');
+        setCurrentIndex(currentIndex + 1); // Increment to the next product
       } else {
-        setProducts([]);
-        setCurrentIndex(0);
-        fetchProducts(); // Automatically fetch more products when we run out
+        console.log('No more products in the current batch. Fetching new products...');
+        setProducts([]); // Clear the current batch
+        setCurrentIndex(0); // Reset index
+        fetchProducts(); // Fetch new products
       }
     } catch (err) {
       console.error('Review submission error:', err);
@@ -113,6 +118,7 @@ export default function Home() {
       setSubmitting(false);
     }
   };
+  
 
   return (
     <Box 

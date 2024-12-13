@@ -1,10 +1,10 @@
 // pages/api/submit-review.js
 import db from '../../lib/db';
+import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req, res) {
   console.log('Submit review API called');
   console.log('Request method:', req.method);
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -12,47 +12,54 @@ export default async function handler(req, res) {
 
   const { scrape_id, review_score, reviewer_email } = req.body;
 
+  console.log('Request body:', { scrape_id, review_score, reviewer_email });
+
   // Validate input data
   if (!scrape_id || review_score === undefined || !reviewer_email) {
-    return res.status(400).json({ 
+    console.error('Missing required fields:', { scrape_id, review_score, reviewer_email });
+    return res.status(400).json({
       error: 'Missing required fields',
-      received: { scrape_id, review_score, reviewer_email }
+      received: { scrape_id, review_score, reviewer_email },
     });
   }
 
   try {
-    // Insert new review without specifying id (it will auto-increment)
-    const result = await db.query(
-      `INSERT INTO reviews 
-       (scrape_id, review_score, reviewer_email, created_at) 
-       VALUES (?, ?, ?, NOW())`,
-      [scrape_id, review_score, reviewer_email]
+    // Check if the review already exists
+    const checkExistingReview = await db.query(
+      `SELECT 1 FROM reviews WHERE scrape_id = ? AND reviewer_email = ?`,
+      [scrape_id, reviewer_email]
     );
-    
-    console.log('Insert result:', result);
-    
-    await db.end();
-    
-    return res.status(200).json({ 
-      message: 'Review submitted successfully',
-      result: result 
-    });
-  } catch (error) {
-    console.error('Database error details:', {
-      message: error.message,
-      code: error.code
-    });
 
-    // Handle duplicate review error
-    if (error.code === 'ER_DUP_ENTRY') {
-      return res.status(400).json({
-        error: 'You have already reviewed this product'
-      });
+    console.log('Check for existing review:', checkExistingReview);
+
+    if (checkExistingReview.length > 0) {
+      console.warn('Review already exists for this product and user:', { scrape_id, reviewer_email });
+      return res.status(400).json({ error: 'You have already reviewed this product' });
     }
 
-    return res.status(500).json({ 
+    // Insert new review with a UUID
+    const result = await db.query(
+      `INSERT INTO reviews 
+       (id, scrape_id, review_score, reviewer_email, created_at) 
+       VALUES (?, ?, ?, ?, NOW())`,
+      [uuidv4(), scrape_id, review_score, reviewer_email]
+    );
+
+    console.log('Review successfully inserted:', result);
+
+    return res.status(200).json({
+      message: 'Review submitted successfully',
+      result,
+    });
+  } catch (error) {
+    console.error('Database error during review submission:', {
+      message: error.message,
+      code: error.code,
+    });
+
+    return res.status(500).json({
       error: 'Failed to submit review',
-      details: error.message
+      details: error.message,
     });
   } finally {
     await db.end();
