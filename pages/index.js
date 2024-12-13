@@ -20,15 +20,14 @@ const supabase = createClient(
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentProduct, setCurrentProduct] = useState(null);
-  const [reviewCounter, setReviewCounter] = useState(0);
+  const [products, setProducts] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [productQueue, setProductQueue] = useState([]);
-  const QUEUE_THRESHOLD = 10;
+  const [reviewCounter, setReviewCounter] = useState(0);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -49,13 +48,7 @@ export default function Home() {
       }
 
       setIsAuthenticated(true);
-      fetchProductBatch().then(products => {
-        setProductQueue(products);
-        if (products.length > 0) {
-          setCurrentProduct(products[0]);
-          setProductQueue(products.slice(1));
-        }
-      });
+      fetchProducts();
     } catch (err) {
       console.error('Authentication error:', err);
       setError('Authentication failed');
@@ -64,65 +57,52 @@ export default function Home() {
     }
   };
 
-  const fetchProductBatch = async () => {
+  const fetchProducts = async () => {
     setLoading(true);
     setError('');
     
     try {
-      // Get a list of products that haven't been reviewed by the current user
-      const { data: products, error: productError } = await supabase
+      // First get the user's batch number
+      const { data: userData, error: userError } = await supabase
+        .from('user_identities')
+        .select('batch_number')
+        .eq('email', email)
+        .single();
+
+      if (userError) throw userError;
+
+      // Get two products from user's batch that haven't been reviewed by this user
+      const { data: fetchedProducts, error: productError } = await supabase
         .from('input_products')
         .select(`
           *,
           reviews!left(reviewer_email)
         `)
-        .lt('review_count', 5)
+        .eq('assigned_batch', userData.batch_number)
         .not('reviews.reviewer_email', 'eq', email)
-        .order('review_count', { ascending: false })
-        .limit(QUEUE_THRESHOLD);
-  
+        .limit(2);
+
       if (productError) throw productError;
       
-      return products || [];
+      setProducts(fetchedProducts || []);
+      setCurrentIndex(0);
     } catch (err) {
-      console.error('Error fetching product batch:', err);
+      console.error('Error fetching products:', err);
       setError('Failed to load products');
-      return [];
     } finally {
       setLoading(false);
     }
   };
 
-  const ensureProductQueue = async () => {
-    if (productQueue.length <= 2) {
-      const newProducts = await fetchProductBatch();
-      setProductQueue(current => [...current, ...newProducts]);
-    }
-  };
-
-  const fetchNextProduct = async () => {
-    console.log("fetching next product")
-    await ensureProductQueue();
-    
-    if (productQueue.length === 0) {
-      setCurrentProduct(null);
-      return;
-    }
-    
-    setProductQueue(current => {
-      const [nextProduct, ...remainingProducts] = current;
-      setCurrentProduct(nextProduct);
-      return remainingProducts;
-    });
-  };
-
   const submitReview = async (score) => {
-    if (!currentProduct || submitting) return;
+    if (submitting) return;
 
     setSubmitting(true);
     setError('');
 
     try {
+      const currentProduct = products[currentIndex];
+      
       const { error: insertError } = await supabase
         .from('reviews')
         .insert([
@@ -131,18 +111,15 @@ export default function Home() {
 
       if (insertError) throw insertError;
 
-      const { error: updateError } = await supabase
-        .from('input_products')
-        .update({ review_count: currentProduct.review_count + 1 })
-        .eq('scrape_id', currentProduct.scrape_id);
-
-      if (updateError) throw updateError;
-
       setReviewCounter(prev => prev + 1);
       
-      ensureProductQueue().then(() => {
-        fetchNextProduct();
-      });
+      // Move to next product or finish
+      if (currentIndex < products.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        setProducts([]);
+        setCurrentIndex(0);
+      }
     } catch (err) {
       console.error('Error submitting review:', err);
       setError('Failed to submit review: ' + err.message);
@@ -150,18 +127,6 @@ export default function Home() {
       setSubmitting(false);
     }
   };
-
-  useEffect(() => {
-    if (isAuthenticated && productQueue.length === 0) {
-      fetchProductBatch().then(products => {
-        setProductQueue(products);
-        if (products.length > 0) {
-          setCurrentProduct(products[0]);
-          setProductQueue(products.slice(1));
-        }
-      });
-    }
-  }, [isAuthenticated]);
 
   return (
     <Box 
@@ -216,7 +181,7 @@ export default function Home() {
         <VStack justify="center" align="center" h="100dvh">
           <Text>Loading...</Text>
         </VStack>
-      ) : !currentProduct ? (
+      ) : !products.length ? (
         <VStack justify="center" align="center" h="100dvh">
           <Text fontSize="xl" fontWeight="bold">No more products to review!</Text>
           <Button mt={4} colorScheme="blue" onClick={() => window.location.reload()}>
@@ -241,8 +206,8 @@ export default function Home() {
           >
             <Box position="relative" pt="100%">
               <Image
-                src={currentProduct.product_primary_image_url}
-                alt={currentProduct.product_name}
+                src={products[currentIndex].product_primary_image_url}
+                alt={products[currentIndex].product_name}
                 fill
                 style={{ objectFit: 'contain', pointerEvents: 'none' }}
               />
@@ -251,9 +216,9 @@ export default function Home() {
             <Box p={4}>
               <Text fontSize="sm" color="gray.500" mb={1}>products reviewed: {reviewCounter}</Text>
               <Text fontSize="lg" fontWeight="medium" color="gray.800">
-                {currentProduct.brand_name} | {currentProduct.product_name}
+                {products[currentIndex].brand_name} | {products[currentIndex].product_name}
               </Text>
-              <Text fontSize="xl" fontWeight="bold" mt={1}>₹{currentProduct.selling_price}</Text>
+              <Text fontSize="xl" fontWeight="bold" mt={1}>₹{products[currentIndex].selling_price}</Text>
             </Box>
           </Box>
 
