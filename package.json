@@ -14,9 +14,11 @@
     "@emotion/styled": "^11.14.0",
     "@supabase/supabase-js": "^2.47.3",
     "framer-motion": "^6.5.1",
+    "mysql2": "^3.11.5",
     "next": "15.0.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "serverless-mysql": "^1.5.5"
   },
   "devDependencies": {
     "@types/node": "^20",

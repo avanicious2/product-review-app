@@ -1,6 +1,5 @@
 // pages/index.js
 import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import Head from 'next/head';
 import Image from 'next/image';
 import {
@@ -11,12 +10,6 @@ import {
   Text,
   Container
 } from '@chakra-ui/react';
-
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -30,128 +23,57 @@ export default function Home() {
   const [reviewCounter, setReviewCounter] = useState(0);
 
   const handleAuth = async (e) => {
-    console.log('[handleAuth] Starting authentication process');
-    console.log('[handleAuth] Email:', email);
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      console.log('[handleAuth] Querying user_identities table');
-      const { data: userData, error: userError } = await supabase
-        .from('user_identities')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password)
-        .single();
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-      console.log('[handleAuth] Query response:', { userData, userError });
+      const data = await response.json();
 
-      if (userError || !userData) {
-        console.log('[handleAuth] Authentication failed - invalid credentials');
-        setError('Invalid email or password');
-        return;
+      if (!response.ok) {
+        throw new Error(data.error || 'Authentication failed');
       }
 
-      console.log('[handleAuth] Authentication successful');
       setIsAuthenticated(true);
       fetchProducts();
     } catch (err) {
-      console.error('[handleAuth] Error:', err);
-      setError('Authentication failed');
+      console.error('Auth error:', err);
+      setError(err.message || 'Failed to authenticate');
     } finally {
       setLoading(false);
-      console.log('[handleAuth] Authentication process completed');
     }
   };
 
   const fetchProducts = async () => {
-    console.log('[fetchProducts] Starting product fetch');
     setLoading(true);
     setError('');
     
     try {
-      // First get user's batch number
-      console.log('[fetchProducts] Fetching user batch number for email:', email);
-      console.log('[fetchProducts] Batch query parameters:', {
-        table: 'user_identities',
-        select: 'batch_number',
-        filter: `email = '${email}'`
-      });
-      
-      const batchQuery = supabase
-        .from('user_identities')
-        .select('batch_number')
-        .eq('email', email)
-        .single();
-      
-      const { data: userData, error: userError } = await batchQuery;
-  
-      if (userError) {
-        console.error('[fetchProducts] Error fetching batch number:', userError);
-        throw userError;
+      const response = await fetch(`/api/products?email=${encodeURIComponent(email)}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load products');
       }
-      console.log('[fetchProducts] Retrieved batch number:', userData.batch_number);
-  
-      // Then get unreviewed products from that batch
-      console.log('[fetchProducts] Products query parameters:', {
-        table: 'input_products',
-        select: '*,reviews!left(review_score)',
-        filters: {
-          assigned_batch: userData.batch_number,
-          'reviews.review_score': 'is null'
-        },
-        order: 'scrape_id',
-        limit: 2
-      });
-      
-      const productsQuery = supabase
-        .from('input_products')
-        .select(`
-          *,
-          reviews!left(review_score)
-        `)
-        .eq('assigned_batch', userData.batch_number)
-        .is('reviews.review_score', null)
-        .order('scrape_id')
-        .limit(2);
-  
-      const { data: products, error: productError } = await productsQuery;
-  
-      if (productError) {
-        console.error('[fetchProducts] Error fetching products:', productError);
-        throw productError;
-      }
-      
-      console.log('[fetchProducts] Query results:', {
-        productsRetrieved: products?.length || 0,
-        firstProduct: products?.[0] ? {
-          id: products[0].scrape_id,
-          name: products[0].product_name,
-          batch: products[0].assigned_batch
-        } : null,
-        hasMoreProducts: (products?.length || 0) > 1
-      });
-      
-      setProducts(products || []);
+
+      setProducts(data || []);
       setCurrentIndex(0);
     } catch (err) {
-      console.error('[fetchProducts] Error:', err);
-      setError('Failed to load products');
+      console.error('Products fetch error:', err);
+      setError(err.message || 'Failed to load products');
     } finally {
       setLoading(false);
-      console.log('[fetchProducts] Product fetch completed');
     }
   };
 
   const submitReview = async (score) => {
-    console.log('[submitReview] Starting review submission');
-    console.log('[submitReview] Score:', score);
-    
-    if (submitting) {
-      console.log('[submitReview] Already submitting, skipping');
-      return;
-    }
+    if (submitting) return;
 
     setSubmitting(true);
     setError('');
@@ -159,45 +81,36 @@ export default function Home() {
     try {
       const currentProduct = products[currentIndex];
       
-      console.log('[submitReview] Submitting review:', {
-        scrape_id: currentProduct.scrape_id,
-        review_score: score,
-        reviewer_email: email,
-        product_details: currentProduct
+      const response = await fetch('/api/submit-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scrape_id: currentProduct.scrape_id,
+          review_score: score,
+          reviewer_email: email
+        })
       });
-      
-      const { error: insertError } = await supabase
-        .from('reviews')
-        .insert([
-          { scrape_id: currentProduct.scrape_id, review_score: score, reviewer_email: email }
-        ]);
 
-      if (insertError) {
-        console.error('[submitReview] Insert error:', insertError);
-        throw insertError;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit review');
       }
-      console.log('[submitReview] Review submitted successfully');
 
-      setReviewCounter(prev => {
-        console.log('[submitReview] Updating review counter from', prev, 'to', prev + 1);
-        return prev + 1;
-      });
+      setReviewCounter(prev => prev + 1);
       
-      // Move to next product or finish
       if (currentIndex < products.length - 1) {
-        console.log('[submitReview] Moving to next product');
         setCurrentIndex(currentIndex + 1);
       } else {
-        console.log('[submitReview] No more products, resetting state');
         setProducts([]);
         setCurrentIndex(0);
+        fetchProducts(); // Automatically fetch more products when we run out
       }
     } catch (err) {
-      console.error('[submitReview] Error:', err);
-      setError('Failed to submit review: ' + err.message);
+      console.error('Review submission error:', err);
+      setError(err.message || 'Failed to submit review');
     } finally {
       setSubmitting(false);
-      console.log('[submitReview] Review submission completed');
     }
   };
 
@@ -244,8 +157,14 @@ export default function Home() {
                   required
                 />
               </Box>
-              <Button type="submit" isDisabled={loading} w="full" colorScheme="blue">
-                {loading ? 'Logging in...' : 'Login'}
+              <Button 
+                type="submit" 
+                isLoading={loading}
+                loadingText="Logging in..."
+                w="full" 
+                colorScheme="blue"
+              >
+                Login
               </Button>
             </form>
           </Box>
@@ -277,6 +196,7 @@ export default function Home() {
             bg="white"
             borderRadius="lg"
             boxShadow="lg"
+            m={4}
           >
             <Box position="relative" pt="100%">
               <Image
@@ -288,7 +208,7 @@ export default function Home() {
             </Box>
 
             <Box p={4}>
-              <Text fontSize="sm" color="gray.500" mb={1}>products reviewed: {reviewCounter}</Text>
+              <Text fontSize="sm" color="gray.500" mb={1}>Products reviewed: {reviewCounter}</Text>
               <Text fontSize="lg" fontWeight="medium" color="gray.800">
                 {products[currentIndex].brand_name} | {products[currentIndex].product_name}
               </Text>
@@ -310,7 +230,8 @@ export default function Home() {
             <HStack justify="space-between" align="center">
               <Button
                 onClick={() => submitReview(0)}
-                isDisabled={submitting}
+                isLoading={submitting}
+                loadingText="..."
                 colorScheme="red"
                 size="lg"
                 borderRadius="full"
@@ -318,11 +239,12 @@ export default function Home() {
                 py={6}
                 fontSize="xl"
               >
-                👎 {submitting ? '...' : 'Dislike'}
+                👎 Dislike
               </Button>
               <Button
                 onClick={() => submitReview(1)}
-                isDisabled={submitting}
+                isLoading={submitting}
+                loadingText="..."
                 colorScheme="green"
                 size="lg"
                 borderRadius="full"
@@ -330,7 +252,7 @@ export default function Home() {
                 py={6}
                 fontSize="xl"
               >
-                👍 {submitting ? '...' : 'Like'}
+                👍 Like
               </Button>
             </HStack>
           </Box>
