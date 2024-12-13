@@ -73,13 +73,18 @@ export default function Home() {
     try {
       // First get user's batch number
       console.log('[fetchProducts] Fetching user batch number for email:', email);
+      console.log('[fetchProducts] Batch query parameters:', {
+        table: 'user_identities',
+        select: 'batch_number',
+        filter: `email = '${email}'`
+      });
+      
       const batchQuery = supabase
         .from('user_identities')
         .select('batch_number')
         .eq('email', email)
         .single();
       
-      console.log('[fetchProducts] Batch query:', batchQuery.toSQL());
       const { data: userData, error: userError } = await batchQuery;
   
       if (userError) {
@@ -89,7 +94,17 @@ export default function Home() {
       console.log('[fetchProducts] Retrieved batch number:', userData.batch_number);
   
       // Then get unreviewed products from that batch
-      console.log('[fetchProducts] Fetching unreviewed products for batch:', userData.batch_number);
+      console.log('[fetchProducts] Products query parameters:', {
+        table: 'input_products',
+        select: '*,reviews!left(review_score)',
+        filters: {
+          assigned_batch: userData.batch_number,
+          'reviews.review_score': 'is null'
+        },
+        order: 'scrape_id',
+        limit: 2
+      });
+      
       const productsQuery = supabase
         .from('input_products')
         .select(`
@@ -100,16 +115,23 @@ export default function Home() {
         .is('reviews.review_score', null)
         .order('scrape_id')
         .limit(2);
-
-      console.log('[fetchProducts] Products query:', productsQuery.toSQL());
+  
       const { data: products, error: productError } = await productsQuery;
   
       if (productError) {
         console.error('[fetchProducts] Error fetching products:', productError);
         throw productError;
       }
-      console.log('[fetchProducts] Retrieved products count:', products?.length || 0);
-      console.log('[fetchProducts] Products data:', products);
+      
+      console.log('[fetchProducts] Query results:', {
+        productsRetrieved: products?.length || 0,
+        firstProduct: products?.[0] ? {
+          id: products[0].scrape_id,
+          name: products[0].product_name,
+          batch: products[0].assigned_batch
+        } : null,
+        hasMoreProducts: (products?.length || 0) > 1
+      });
       
       setProducts(products || []);
       setCurrentIndex(0);
