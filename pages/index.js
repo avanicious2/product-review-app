@@ -68,11 +68,11 @@ export default function Home() {
         .select('batch_number')
         .eq('email', email)
         .single();
-
+  
       if (userError) throw userError;
-
-      // Get two products from user's batch that haven't been reviewed by this user
-      const { data: fetchedProducts, error: productError } = await supabase
+  
+      // Get all unreviewed products from user's batch, max 2
+      const { data: allProducts, error: productError } = await supabase
         .from('input_products')
         .select(`
           *,
@@ -80,11 +80,17 @@ export default function Home() {
         `)
         .eq('assigned_batch', userData.batch_number)
         .not('reviews.reviewer_email', 'eq', email)
+        .order('scrape_id')
         .limit(2);
-
+  
       if (productError) throw productError;
+  
+      // Filter out any products that have been reviewed
+      const unreviewed = allProducts.filter(product => 
+        !product.reviews || product.reviews.length === 0
+      );
       
-      setProducts(fetchedProducts || []);
+      setProducts(unreviewed || []);
       setCurrentIndex(0);
     } catch (err) {
       console.error('Error fetching products:', err);
@@ -184,6 +190,7 @@ export default function Home() {
       ) : !products.length ? (
         <VStack justify="center" align="center" h="100dvh">
           <Text fontSize="xl" fontWeight="bold">No more products to review!</Text>
+          <Text fontSize="sm">Start new session to check for more products</Text>
           <Button mt={4} colorScheme="blue" onClick={() => window.location.reload()}>
             Start New Session
           </Button>
