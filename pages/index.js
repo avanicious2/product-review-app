@@ -1,5 +1,5 @@
 // pages/index.js
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Head from 'next/head';
 import Image from 'next/image';
