@@ -63,6 +63,7 @@ export default function Home() {
     
     try {
       // First get user's batch number
+      console.log('Fetching user batch number for email:', email);
       const { data: userData, error: userError } = await supabase
         .from('user_identities')
         .select('batch_number')
@@ -70,8 +71,10 @@ export default function Home() {
         .single();
   
       if (userError) throw userError;
+      console.log('Retrieved batch number:', userData.batch_number);
   
       // Then get unreviewed products from that batch
+      console.log('Fetching unreviewed products for batch:', userData.batch_number);
       const { data: products, error: productError } = await supabase
         .from('input_products')
         .select(`
@@ -84,6 +87,7 @@ export default function Home() {
         .limit(2);
   
       if (productError) throw productError;
+      console.log('Retrieved products:', products?.length || 0);
       
       setProducts(products || []);
       setCurrentIndex(0);
@@ -104,6 +108,12 @@ export default function Home() {
     try {
       const currentProduct = products[currentIndex];
       
+      console.log('Submitting review:', {
+        scrape_id: currentProduct.scrape_id,
+        review_score: score,
+        reviewer_email: email
+      });
+      
       const { error: insertError } = await supabase
         .from('reviews')
         .insert([
@@ -111,6 +121,7 @@ export default function Home() {
         ]);
 
       if (insertError) throw insertError;
+      console.log('Review submitted successfully');
 
       setReviewCounter(prev => prev + 1);
       
