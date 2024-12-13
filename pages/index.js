@@ -62,24 +62,28 @@ export default function Home() {
     setError('');
     
     try {
-      // First get the user's batch number
-      const { data: userData, error: userError } = await supabase
-        .from('user_identities')
-        .select('batch_number')
-        .eq('email', email)
-        .single();
-  
-      if (userError) throw userError;
-  
-      // Get products that haven't been reviewed by this user
+      // Using a single query with subqueries to get unreviewed products from user's batch
       const { data: products, error: productError } = await supabase
         .from('input_products')
-        .select(`
-          *,
-          reviews!inner(reviewer_email)
-        `)
-        .eq('assigned_batch', userData.batch_number)
-        .neq('reviews.reviewer_email', email)
+        .select('*')
+        .filter('scrape_id', 'in', (
+          supabase
+            .from('input_products')
+            .select('scrape_id')
+            .eq('assigned_batch', (
+              supabase
+                .from('user_identities')
+                .select('batch_number')
+                .eq('email', email)
+                .single()
+            ))
+            .not('scrape_id', 'in', (
+              supabase
+                .from('reviews')
+                .select('scrape_id')
+                .eq('reviewer_email', email)
+            ))
+        ))
         .order('scrape_id')
         .limit(2);
   
