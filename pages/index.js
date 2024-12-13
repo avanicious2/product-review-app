@@ -73,11 +73,14 @@ export default function Home() {
     try {
       // First get user's batch number
       console.log('[fetchProducts] Fetching user batch number for email:', email);
-      const { data: userData, error: userError } = await supabase
+      const batchQuery = supabase
         .from('user_identities')
         .select('batch_number')
         .eq('email', email)
         .single();
+      
+      console.log('[fetchProducts] Batch query:', batchQuery.toSQL());
+      const { data: userData, error: userError } = await batchQuery;
   
       if (userError) {
         console.error('[fetchProducts] Error fetching batch number:', userError);
@@ -87,7 +90,7 @@ export default function Home() {
   
       // Then get unreviewed products from that batch
       console.log('[fetchProducts] Fetching unreviewed products for batch:', userData.batch_number);
-      const { data: products, error: productError } = await supabase
+      const productsQuery = supabase
         .from('input_products')
         .select(`
           *,
@@ -97,6 +100,9 @@ export default function Home() {
         .is('reviews.review_score', null)
         .order('scrape_id')
         .limit(2);
+
+      console.log('[fetchProducts] Products query:', productsQuery.toSQL());
+      const { data: products, error: productError } = await productsQuery;
   
       if (productError) {
         console.error('[fetchProducts] Error fetching products:', productError);
