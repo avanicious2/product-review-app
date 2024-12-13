@@ -100,20 +100,15 @@ export default function Home() {
       }
   
       console.log('Review submitted successfully:', data);
+      
+      // Increment review counter
+      setReviewCounter(prev => prev + 1);
   
-      // Increment review counter after successful submission
-      setReviewCounter(prevCount => prevCount + 1);
-
-      // Handle next product or fetch more products
+      // Move to next product if available
       if (currentIndex < products.length - 1) {
-        console.log('Fetching next product...');
-        setCurrentIndex(currentIndex + 1); // Increment to the next product
-      } else {
-        console.log('No more products in the current batch. Fetching new products...');
-        setProducts([]); // Clear the current batch
-        setCurrentIndex(0); // Reset index
-        fetchProducts(); // Fetch new products
+        setCurrentIndex(currentIndex + 1);
       }
+      // Otherwise session is complete
     } catch (err) {
       console.error('Review submission error:', err);
       setError(err.message || 'Failed to submit review');
@@ -182,10 +177,11 @@ export default function Home() {
         <VStack justify="center" align="center" h="100dvh">
           <Text>Loading...</Text>
         </VStack>
-      ) : !products.length ? (
+      ) : !products.length || currentIndex >= products.length ? (
         <VStack justify="center" align="center" h="100dvh">
-          <Text fontSize="xl" fontWeight="bold">No more products to review!</Text>
-          <Text fontSize="sm">Start new session to check for more products</Text>
+          <Text fontSize="xl" fontWeight="bold">Session Complete!</Text>
+          <Text fontSize="md" mb={2}>You reviewed {reviewCounter} products</Text>
+          <Text fontSize="sm">Start new session to review more products</Text>
           <Button mt={4} colorScheme="blue" onClick={() => window.location.reload()}>
             Start New Session
           </Button>
