@@ -30,11 +30,14 @@ export default function Home() {
   const [reviewCounter, setReviewCounter] = useState(0);
 
   const handleAuth = async (e) => {
+    console.log('[handleAuth] Starting authentication process');
+    console.log('[handleAuth] Email:', email);
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
+      console.log('[handleAuth] Querying user_identities table');
       const { data: userData, error: userError } = await supabase
         .from('user_identities')
         .select('*')
@@ -42,39 +45,48 @@ export default function Home() {
         .eq('password', password)
         .single();
 
+      console.log('[handleAuth] Query response:', { userData, userError });
+
       if (userError || !userData) {
+        console.log('[handleAuth] Authentication failed - invalid credentials');
         setError('Invalid email or password');
         return;
       }
 
+      console.log('[handleAuth] Authentication successful');
       setIsAuthenticated(true);
       fetchProducts();
     } catch (err) {
-      console.error('Authentication error:', err);
+      console.error('[handleAuth] Error:', err);
       setError('Authentication failed');
     } finally {
       setLoading(false);
+      console.log('[handleAuth] Authentication process completed');
     }
   };
 
   const fetchProducts = async () => {
+    console.log('[fetchProducts] Starting product fetch');
     setLoading(true);
     setError('');
     
     try {
       // First get user's batch number
-      console.log('Fetching user batch number for email:', email);
+      console.log('[fetchProducts] Fetching user batch number for email:', email);
       const { data: userData, error: userError } = await supabase
         .from('user_identities')
         .select('batch_number')
         .eq('email', email)
         .single();
   
-      if (userError) throw userError;
-      console.log('Retrieved batch number:', userData.batch_number);
+      if (userError) {
+        console.error('[fetchProducts] Error fetching batch number:', userError);
+        throw userError;
+      }
+      console.log('[fetchProducts] Retrieved batch number:', userData.batch_number);
   
       // Then get unreviewed products from that batch
-      console.log('Fetching unreviewed products for batch:', userData.batch_number);
+      console.log('[fetchProducts] Fetching unreviewed products for batch:', userData.batch_number);
       const { data: products, error: productError } = await supabase
         .from('input_products')
         .select(`
@@ -86,21 +98,32 @@ export default function Home() {
         .order('scrape_id')
         .limit(2);
   
-      if (productError) throw productError;
-      console.log('Retrieved products:', products?.length || 0);
+      if (productError) {
+        console.error('[fetchProducts] Error fetching products:', productError);
+        throw productError;
+      }
+      console.log('[fetchProducts] Retrieved products count:', products?.length || 0);
+      console.log('[fetchProducts] Products data:', products);
       
       setProducts(products || []);
       setCurrentIndex(0);
     } catch (err) {
-      console.error('Error fetching products:', err);
+      console.error('[fetchProducts] Error:', err);
       setError('Failed to load products');
     } finally {
       setLoading(false);
+      console.log('[fetchProducts] Product fetch completed');
     }
   };
 
   const submitReview = async (score) => {
-    if (submitting) return;
+    console.log('[submitReview] Starting review submission');
+    console.log('[submitReview] Score:', score);
+    
+    if (submitting) {
+      console.log('[submitReview] Already submitting, skipping');
+      return;
+    }
 
     setSubmitting(true);
     setError('');
@@ -108,10 +131,11 @@ export default function Home() {
     try {
       const currentProduct = products[currentIndex];
       
-      console.log('Submitting review:', {
+      console.log('[submitReview] Submitting review:', {
         scrape_id: currentProduct.scrape_id,
         review_score: score,
-        reviewer_email: email
+        reviewer_email: email,
+        product_details: currentProduct
       });
       
       const { error: insertError } = await supabase
@@ -120,23 +144,32 @@ export default function Home() {
           { scrape_id: currentProduct.scrape_id, review_score: score, reviewer_email: email }
         ]);
 
-      if (insertError) throw insertError;
-      console.log('Review submitted successfully');
+      if (insertError) {
+        console.error('[submitReview] Insert error:', insertError);
+        throw insertError;
+      }
+      console.log('[submitReview] Review submitted successfully');
 
-      setReviewCounter(prev => prev + 1);
+      setReviewCounter(prev => {
+        console.log('[submitReview] Updating review counter from', prev, 'to', prev + 1);
+        return prev + 1;
+      });
       
       // Move to next product or finish
       if (currentIndex < products.length - 1) {
+        console.log('[submitReview] Moving to next product');
         setCurrentIndex(currentIndex + 1);
       } else {
+        console.log('[submitReview] No more products, resetting state');
         setProducts([]);
         setCurrentIndex(0);
       }
     } catch (err) {
-      console.error('Error submitting review:', err);
+      console.error('[submitReview] Error:', err);
       setError('Failed to submit review: ' + err.message);
     } finally {
       setSubmitting(false);
+      console.log('[submitReview] Review submission completed');
     }
   };
 
