@@ -107,8 +107,10 @@ export default function Home() {
       // Move to next product if available
       if (currentIndex < products.length - 1) {
         setCurrentIndex(currentIndex + 1);
+      } else {
+        // Force currentIndex to be products.length to show end screen
+        setCurrentIndex(products.length);
       }
-      // Otherwise session is complete
     } catch (err) {
       console.error('Review submission error:', err);
       setError(err.message || 'Failed to submit review');
