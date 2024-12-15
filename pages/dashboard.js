@@ -12,8 +12,8 @@ import {
   Tr,
   Th,
   Td,
-  HStack,
-  VStack,
+  Grid,
+  GridItem,
   Stat,
   StatLabel,
   StatNumber,
@@ -62,9 +62,9 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <VStack justify="center" align="center" h="100dvh">
+      <Box display="flex" justifyContent="center" alignItems="center" minH="100dvh">
         <Text>Loading...</Text>
-      </VStack>
+      </Box>
     );
   }
 
@@ -81,25 +81,29 @@ export default function Dashboard() {
       )}
 
       <Container maxW="container.md">
-        {/* Today's Stats */}
-        <HStack spacing={8} mb={8}>
-          <Box flex={1} bg="white" p={6} borderRadius="lg" boxShadow="md">
-            <Stat>
-              <StatLabel fontSize="lg">Reviews today</StatLabel>
-              <StatNumber fontSize="4xl">{todayStats.reviews}</StatNumber>
-            </Stat>
-          </Box>
-          <Box flex={1} bg="white" p={6} borderRadius="lg" boxShadow="md">
-            <Stat>
-              <StatLabel fontSize="lg">Likes today</StatLabel>
-              <StatNumber fontSize="4xl">{todayStats.likes}</StatNumber>
-            </Stat>
-          </Box>
-        </HStack>
+        {/* Responsive Grid for Stats */}
+        <Grid templateColumns={{ base: '1fr', sm: '1fr 1fr' }} gap={6} mb={8}>
+          <GridItem>
+            <Box bg="white" p={6} borderRadius="lg" boxShadow="md" textAlign="center">
+              <Stat>
+                <StatLabel fontSize="lg">Reviews today</StatLabel>
+                <StatNumber fontSize="4xl">{todayStats.reviews}</StatNumber>
+              </Stat>
+            </Box>
+          </GridItem>
+          <GridItem>
+            <Box bg="white" p={6} borderRadius="lg" boxShadow="md" textAlign="center">
+              <Stat>
+                <StatLabel fontSize="lg">Likes today</StatLabel>
+                <StatNumber fontSize="4xl">{todayStats.likes}</StatNumber>
+              </Stat>
+            </Box>
+          </GridItem>
+        </Grid>
 
-        {/* Historical Data Table */}
-        <Box bg="white" p={6} borderRadius="lg" boxShadow="md">
-          <Table variant="simple">
+        {/* Scrollable Table for Historical Data */}
+        <Box bg="white" p={4} borderRadius="lg" boxShadow="md" overflowX="auto">
+          <Table size="sm" variant="striped">
             <Thead>
               <Tr>
                 <Th>Date</Th>
