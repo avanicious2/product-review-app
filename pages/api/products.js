@@ -3,64 +3,58 @@ import db from '../../lib/db';
 
 export default async function handler(req, res) {
   console.log('Products API called');
-  console.log('Request method:', req.method);
-
+  console.log('Request query params:', req.query);
+  
   if (req.method !== 'GET') {
+    console.log('Invalid method:', req.method);
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   const { email } = req.query;
 
   if (!email) {
-    console.error('Email is required to fetch products');
+    console.log('Missing email in request');
     return res.status(400).json({ error: 'Email is required' });
   }
 
   try {
-    console.log('Fetching batch number for user with email:', email);
-
     // Get user's batch number
-    const [userData] = await db.query(
-      'SELECT batch_number FROM user_identities WHERE email = ?',
-      [email]
-    );
-
-    console.log('Fetched user data:', userData);
+    const batchQuery = 'SELECT batch_number FROM user_identities WHERE email = ?';
+    console.log('Executing batch query:', batchQuery);
+    console.log('With params:', [email]);
+    
+    const [userData] = await db.query(batchQuery, [email]);
+    console.log('Batch query result:', userData);
 
     if (!userData) {
-      console.warn('No user found with the given email:', email);
+      console.log('No user found for email:', email);
       return res.status(404).json({ error: 'User not found' });
     }
 
-    console.log('Fetching unreviewed products for batch number:', userData.batch_number);
-
-    // Get unreviewed products for the user's batch
-    const products = await db.query(
-      `SELECT i.* 
+    // Get unreviewed products
+    const productsQuery = `SELECT i.* 
        FROM input_products i
        LEFT JOIN reviews r ON r.scrape_id = i.scrape_id AND r.reviewer_email = ?
        WHERE i.assigned_batch = ?
-       AND (r.review_score IS NULL)  -- Only unreviewed products
+       AND (r.review_score IS NULL)
        ORDER BY i.scrape_id
-       LIMIT 300`,
-      [email, userData.batch_number]
-    );
+       LIMIT 300`;
+    
+    console.log('Executing products query:', productsQuery);
+    console.log('With params:', [email, userData.batch_number]);
+    
+    const products = await db.query(productsQuery, [email, userData.batch_number]);
+    console.log('Found products count:', products.length);
+    console.log('First product sample:', products[0]);
 
-    console.log('Fetched products:', products);
-
-    if (products.length === 0) {
-      console.warn('No unreviewed products found for the user in this batch');
-    }
-
+    await db.end();
+    console.log('Database connection closed');
     return res.status(200).json(products);
   } catch (error) {
-    console.error('Error fetching products:', {
-      message: error.message,
-      code: error.code,
-    });
-
-    return res.status(500).json({ error: 'Failed to load products' });
-  } finally {
+    console.error('Error fetching products:', error);
+    console.error('Error stack:', error.stack);
     await db.end();
+    console.log('Database connection closed after error');
+    return res.status(500).json({ error: 'Failed to load products' });
   }
 }
