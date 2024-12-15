@@ -258,8 +258,10 @@ export default function Home() {
             right={0}
             bg="white"
             borderTopWidth={1}
+            borderBottomWidth={1}
             borderColor="gray.200"
             p={4}
+            pt="env(safe-area-inset-bottom)"
             pb="env(safe-area-inset-bottom)"
           >
             <HStack justify="space-between" align="center">
