@@ -42,7 +42,7 @@ export default async function handler(req, res) {
        WHERE i.assigned_batch = ?
        AND (r.review_score IS NULL)  -- Only unreviewed products
        ORDER BY i.scrape_id
-       LIMIT 100`,
+       LIMIT 300`,
       [email, userData.batch_number]
     );
 
