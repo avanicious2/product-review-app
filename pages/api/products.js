@@ -36,6 +36,7 @@ export default async function handler(req, res) {
        FROM input_products i
        LEFT JOIN reviews r ON r.scrape_id = i.scrape_id AND r.reviewer_email = ?
        WHERE i.assigned_batch = ?
+       AND i.reviews_uploaded = 0
        AND (r.review_score IS NULL)
        ORDER BY i.scrape_id
        LIMIT 300`;
