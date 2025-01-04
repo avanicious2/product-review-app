@@ -38,7 +38,7 @@ export default async function handler(req, res) {
        WHERE i.assigned_batch = ?
        AND i.reviews_uploaded = 0
        AND (r.review_score IS NULL)
-       ORDER BY i.scrape_id
+       ORDER BY i.created_at desc
        LIMIT 300`;
     
     console.log('Executing products query:', productsQuery);
