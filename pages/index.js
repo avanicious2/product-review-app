@@ -21,13 +21,48 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [reviewCounter, setReviewCounter] = useState(0);
+  const [currentImageUrl, setCurrentImageUrl] = useState('');
 
-  // Modify fetchProducts to accept currentIndex
+  // Replace the existing fetchImageUrl function with this enhanced version
+  const fetchImageUrl = async (product) => {
+    console.log('Attempting to fetch image URL for product:', product.scrape_id);
+    
+    try {
+      console.log('Sending request to /api/gen-s3-url with scrape_id:', product.scrape_id);
+      
+      const response = await fetch('/api/gen-s3-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scrape_id: product.scrape_id
+        }),
+      });
+
+      console.log('Response status from gen-s3-url:', response.status);
+      const data = await response.json();
+      console.log('Response data from gen-s3-url:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate image URL');
+      }
+
+      console.log('Successfully generated URL:', data.url);
+      setCurrentImageUrl(data.url);
+    } catch (err) {
+      console.error('Error fetching image URL:', err);
+      setError(`Failed to load image URL: ${err.message}`);
+      setCurrentImageUrl(''); // Clear URL on error
+    }
+  };
+
+// Replace the existing fetchProducts function with this enhanced version
   const fetchProducts = async (userEmail) => {
     setLoading(true);
     setError('');
+    setCurrentImageUrl(''); // Clear current image URL while loading
 
     try {
+      console.log('Fetching products for email:', userEmail || email);
       const response = await fetch(`/api/products?email=${encodeURIComponent(userEmail || email)}`);
       const data = await response.json();
 
@@ -35,33 +70,64 @@ export default function Home() {
         throw new Error(data.error || 'Failed to load products');
       }
 
+      console.log(`Fetched ${data.length} products`);
       setProducts(data || []);
-      setCurrentIndex(0); // Always start from first product
+      setCurrentIndex(0);
+      
+      // Save products to localStorage
+      localStorage.setItem('products', JSON.stringify(data));
+      localStorage.setItem('currentProductIndex', '0');
+
+      // If we have products, fetch the S3 URL for the first product
+      if (data && data.length > 0) {
+        console.log('Fetching image URL for first product:', data[0].scrape_id);
+        await fetchImageUrl(data[0]);
+      } else {
+        console.log('No products returned from API');
+      }
     } catch (err) {
+      console.error('Error fetching products:', err);
       setError(err.message || 'Failed to load products');
     } finally {
       setLoading(false);
     }
   };
 
+  // Replace the first useEffect with this enhanced version
   useEffect(() => {
+    console.log('Initial load useEffect triggered');
     const savedEmail = localStorage.getItem('userEmail');
     const savedIndex = localStorage.getItem('currentProductIndex');
     const savedProducts = localStorage.getItem('products');
+    
     if (savedEmail) {
+      console.log('Found saved email:', savedEmail);
       setEmail(savedEmail);
       setIsAuthenticated(true);
 
-      // Restore from localStorage if products and currentIndex are available
       if (savedProducts) {
-        setProducts(JSON.parse(savedProducts));
-        setCurrentIndex(savedIndex ? parseInt(savedIndex, 10) : 0);
+        console.log('Found saved products in localStorage');
+        const parsedProducts = JSON.parse(savedProducts);
+        setProducts(parsedProducts);
+        
+        const index = savedIndex ? parseInt(savedIndex, 10) : 0;
+        console.log('Setting current index to:', index);
+        setCurrentIndex(index);
+        
+        if (parsedProducts[index]) {
+          console.log('Fetching image URL for saved product:', parsedProducts[index].scrape_id);
+          fetchImageUrl(parsedProducts[index]);
+        } else {
+          console.log('No product found at index:', index);
+        }
       } else {
-        // Fetch products only if not available in localStorage
+        console.log('No saved products, fetching from API');
         fetchProducts(savedEmail);
       }
+    } else {
+      console.log('No saved email, user needs to log in');
     }
-  }, []); // Remove fetchProducts from dependencies since it's defined outside
+  }, []);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -92,13 +158,17 @@ export default function Home() {
     }
   };
 
+  // Replace the existing submitReview function with this enhanced version
   const submitReview = async (score) => {
     if (submitting) return;
     setSubmitting(true);
     setError('');
+    setCurrentImageUrl(''); // Clear current image URL while loading
 
     try {
       const currentProduct = products[currentIndex];
+      console.log('Submitting review for product:', currentProduct.scrape_id);
+      
       const response = await fetch('/api/submit-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -121,24 +191,28 @@ export default function Home() {
         const newIndex = currentIndex + 1;
         setCurrentIndex(newIndex);
         localStorage.setItem('currentProductIndex', newIndex.toString());
+        
+        console.log('Moving to next product, index:', newIndex);
+        // Fetch URL for next product
+        await fetchImageUrl(products[newIndex]);
       } else {
+        console.log('No more products to review');
         setCurrentIndex(products.length);
         localStorage.removeItem('currentProductIndex');
       }
     } catch (err) {
-      setError(err.message || 'Failed to submit review');
+      console.error('Error in submitReview:', err);
+      setError(`Failed to submit review: ${err.message}`);
     } finally {
       setSubmitting(false);
     }
   };
 
   useEffect(() => {
-    // Save current index to local storage when leaving the tab
     return () => {
       localStorage.setItem('currentProductIndex', currentIndex.toString());
     };
   }, [currentIndex]);
-
 
   return (
     <Box 
@@ -233,21 +307,27 @@ export default function Home() {
             m={4}
           >
             <Box position="relative" pt="100%">
-              <Image
-                src={products[currentIndex].product_primary_image_url}
-                alt={products[currentIndex].product_name}
-                fill
-                style={{ objectFit: 'contain', pointerEvents: 'none' }}
-              />
+              {currentImageUrl && (
+                <Image
+                  src={currentImageUrl}
+                  alt={products[currentIndex].product_name}
+                  fill
+                  style={{ objectFit: 'contain', pointerEvents: 'none' }}
+                />
+              )}
             </Box>
 
             <Box p={4}>
               <Text fontSize="sm" color="gray.500" mb={1}>Products reviewed: {reviewCounter}</Text>
-              <Text fontSize="sm" color="gray.500" mb={2}>ID: {products[currentIndex].scrape_id}</Text>
+              <Text fontSize="sm" color="gray.500" mb={2}>ID xyz test: {products[currentIndex].scrape_id}</Text>
               <Text fontSize="lg" fontWeight="medium" color="gray.800">
                 {products[currentIndex].brand_name} | {products[currentIndex].product_name}
               </Text>
               <Text fontSize="xl" fontWeight="bold" mt={1}>₹{products[currentIndex].selling_price}</Text>
+            </Box>
+            <Box p={4} bg="gray.100" mt={2} borderRadius="md" fontSize="xs" wordBreak="break-all">
+              <Text fontWeight="bold">Debug Info:</Text>
+              <Text>Image URL: {currentImageUrl || 'No URL generated'}</Text>
             </Box>
           </Box>
 
