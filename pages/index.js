@@ -22,6 +22,7 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const [reviewCounter, setReviewCounter] = useState(0);
   const [currentImageUrl, setCurrentImageUrl] = useState('');
+  const [imageUrlMap, setImageUrlMap] = useState({});
 
   // Replace the existing fetchImageUrl function with this enhanced version
   const fetchImageUrl = async (product) => {
@@ -55,11 +56,57 @@ export default function Home() {
     }
   };
 
+  const preloadAllImageUrls = async (productsList) => {
+    console.log(`Starting to preload image URLs for ${productsList.length} products`);
+    
+    // Creating a map to store scrape_id -> imageUrl
+    const urlMap = {};
+    let successCount = 0;
+    let failCount = 0;
+    
+    // Process in batches to avoid overwhelming the server
+    const batchSize = 10;
+    
+    for (let i = 0; i < productsList.length; i += batchSize) {
+      const batch = productsList.slice(i, i + batchSize);
+      const batchPromises = batch.map(product => {
+        return new Promise(async (resolve) => {
+          try {
+            const response = await fetch('/api/gen-s3-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                scrape_id: product.scrape_id
+              }),
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              urlMap[product.scrape_id] = data.url;
+              successCount++;
+            } else {
+              failCount++;
+            }
+          } catch (err) {
+            console.error(`Error generating URL for product ${product.scrape_id}:`, err);
+            failCount++;
+          }
+          resolve();
+        });
+      });
+      
+      // Wait for current batch to complete
+      await Promise.all(batchPromises);
+      console.log(`Processed ${i + batch.length} / ${productsList.length} URLs`);
+    }
+    
+    console.log(`URL preloading complete. Success: ${successCount}, Failed: ${failCount}`);
+    return urlMap;
+  };
 // Replace the existing fetchProducts function with this enhanced version
   const fetchProducts = async (userEmail) => {
     setLoading(true);
     setError('');
-    setCurrentImageUrl(''); // Clear current image URL while loading
 
     try {
       console.log('Fetching products for email:', userEmail || email);
@@ -71,20 +118,25 @@ export default function Home() {
       }
 
       console.log(`Fetched ${data.length} products`);
-      setProducts(data || []);
-      setCurrentIndex(0);
       
       // Save products to localStorage
       localStorage.setItem('products', JSON.stringify(data));
       localStorage.setItem('currentProductIndex', '0');
-
-      // If we have products, fetch the S3 URL for the first product
-      if (data && data.length > 0) {
-        console.log('Fetching image URL for first product:', data[0].scrape_id);
-        await fetchImageUrl(data[0]);
-      } else {
-        console.log('No products returned from API');
+      
+      // Preload all image URLs
+      console.log('Starting image URL preloading...');
+      const urlMap = await preloadAllImageUrls(data);
+      setImageUrlMap(urlMap);
+      
+      // Set products and current index
+      setProducts(data || []);
+      setCurrentIndex(0);
+      
+      // Set the current image URL if we have the first product
+      if (data && data.length > 0 && urlMap[data[0].scrape_id]) {
+        setCurrentImageUrl(urlMap[data[0].scrape_id]);
       }
+      
     } catch (err) {
       console.error('Error fetching products:', err);
       setError(err.message || 'Failed to load products');
@@ -93,7 +145,7 @@ export default function Home() {
     }
   };
 
-  // Replace the first useEffect with this enhanced version
+ // Also update the useEffect for initial load to use preloaded URLs
   useEffect(() => {
     console.log('Initial load useEffect triggered');
     const savedEmail = localStorage.getItem('userEmail');
@@ -107,18 +159,33 @@ export default function Home() {
 
       if (savedProducts) {
         console.log('Found saved products in localStorage');
-        const parsedProducts = JSON.parse(savedProducts);
-        setProducts(parsedProducts);
-        
-        const index = savedIndex ? parseInt(savedIndex, 10) : 0;
-        console.log('Setting current index to:', index);
-        setCurrentIndex(index);
-        
-        if (parsedProducts[index]) {
-          console.log('Fetching image URL for saved product:', parsedProducts[index].scrape_id);
-          fetchImageUrl(parsedProducts[index]);
-        } else {
-          console.log('No product found at index:', index);
+        try {
+          const parsedProducts = JSON.parse(savedProducts);
+          setProducts(parsedProducts);
+          
+          const index = savedIndex ? parseInt(savedIndex, 10) : 0;
+          console.log('Setting current index to:', index);
+          
+          if (index < parsedProducts.length) {
+            setCurrentIndex(index);
+            
+            // Preload all image URLs
+            preloadAllImageUrls(parsedProducts).then(urlMap => {
+              setImageUrlMap(urlMap);
+              
+              // Set current image URL
+              const product = parsedProducts[index];
+              if (urlMap[product.scrape_id]) {
+                setCurrentImageUrl(urlMap[product.scrape_id]);
+              } else {
+                // Fallback to direct fetch
+                fetchImageUrl(product);
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Error parsing saved products:', err);
+          fetchProducts(savedEmail);
         }
       } else {
         console.log('No saved products, fetching from API');
@@ -159,22 +226,22 @@ export default function Home() {
   };
 
   // Replace the existing submitReview function with this enhanced version
+  // Replace the existing submitReview function with this fixed version
   const submitReview = async (score) => {
     if (submitting) return;
     setSubmitting(true);
     setError('');
-    setCurrentImageUrl(''); // Clear current image URL while loading
 
     try {
       const currentProduct = products[currentIndex];
-      console.log('Submitting review for product:', currentProduct.scrape_id);
+      console.log('Submitting review for product scrape_id:', currentProduct.scrape_id);
       
       const response = await fetch('/api/submit-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scrape_id: currentProduct.scrape_id,
-          review_score: score,
+          review_score: score, // Use the passed score parameter (0 or 1)
           reviewer_email: email,
         }),
       });
@@ -193,8 +260,16 @@ export default function Home() {
         localStorage.setItem('currentProductIndex', newIndex.toString());
         
         console.log('Moving to next product, index:', newIndex);
-        // Fetch URL for next product
-        await fetchImageUrl(products[newIndex]);
+        const nextProduct = products[newIndex];
+        
+        // Use preloaded URL from map instead of fetching again
+        if (imageUrlMap[nextProduct.scrape_id]) {
+          setCurrentImageUrl(imageUrlMap[nextProduct.scrape_id]);
+        } else {
+          // Fallback to fetching if somehow not preloaded
+          console.log('URL not preloaded for product, fetching on demand...');
+          await fetchImageUrl(nextProduct);
+        }
       } else {
         console.log('No more products to review');
         setCurrentIndex(products.length);
