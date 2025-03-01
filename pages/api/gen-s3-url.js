@@ -1,5 +1,5 @@
 // pages/api/gen-s3-url.js
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3Client = new S3Client({
@@ -31,12 +31,12 @@ export default async function handler(req, res) {
       received: { scrape_id },
     });
   }
-
   try {
     // Try different image extensions
     const extensions = ['.jpeg', '.jpg', '.webp', '.png'];
     const baseObjectKey = `scraped-assets/v3/${scrape_id}/${scrape_id}_1000`;
     let presignedUrl = null;
+    const bucketName = "alle-products";
   
     console.log('===== S3 URL GENERATION =====');
     console.log(`Trying to generate URL for scrape_id: ${scrape_id}`);
@@ -47,24 +47,35 @@ export default async function handler(req, res) {
       console.log(`Trying extension: ${ext}, full key: ${objectKey}`);
   
       try {
-        // First check if object exists
-        const checkCommand = new GetObjectCommand({
-          Bucket: "alle-products",
+        // First check if object exists using HeadObjectCommand
+        // This is equivalent to head_object in the Python boto3 script
+        const headCommand = new HeadObjectCommand({
+          Bucket: bucketName,
           Key: objectKey,
         });
   
-        console.log(`Sending GetObjectCommand for bucket: alle-products, key: ${objectKey}`);
+        console.log(`Checking if object exists: bucket=${bucketName}, key=${objectKey}`);
         
-        // Try to generate URL
-        presignedUrl = await getSignedUrl(s3Client, checkCommand, {
-          expiresIn: 604800, // 7 days in seconds
+        // This will throw an error if the object doesn't exist
+        await s3Client.send(headCommand);
+        console.log(`Object exists! Found image with extension ${ext}`);
+        
+        // Now generate the presigned URL
+        const getCommand = new GetObjectCommand({
+          Bucket: bucketName,
+          Key: objectKey,
         });
         
-        console.log(`SUCCESS: Generated URL for extension ${ext}`);
-        // If we get here, the object exists and URL was generated
+        presignedUrl = await getSignedUrl(s3Client, getCommand, {
+          expiresIn: 604800, // 7 days in seconds - same as in Python script
+        });
+        
+        console.log(`Successfully generated presigned URL for ${objectKey}`);
+        // If we get here, the object exists and URL was generated successfully
         break;
       } catch (err) {
         console.log(`FAILED for extension ${ext}: ${err.message}`);
+        // Continue to the next extension if this one failed, just like in the Python script
         continue;
       }
     }
