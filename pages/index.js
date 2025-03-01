@@ -319,16 +319,13 @@ export default function Home() {
 
             <Box p={4}>
               <Text fontSize="sm" color="gray.500" mb={1}>Products reviewed: {reviewCounter}</Text>
-              <Text fontSize="sm" color="gray.500" mb={2}>ID xyz test: {products[currentIndex].scrape_id}</Text>
+              <Text fontSize="sm" color="gray.500" mb={2}>ID: {products[currentIndex].scrape_id}</Text>
               <Text fontSize="lg" fontWeight="medium" color="gray.800">
                 {products[currentIndex].brand_name} | {products[currentIndex].product_name}
               </Text>
               <Text fontSize="xl" fontWeight="bold" mt={1}>₹{products[currentIndex].selling_price}</Text>
             </Box>
-            <Box p={4} bg="gray.100" mt={2} borderRadius="md" fontSize="xs" wordBreak="break-all">
-              <Text fontWeight="bold">Debug Info:</Text>
-              <Text>Image URL: {currentImageUrl || 'No URL generated'}</Text>
-            </Box>
+            
           </Box>
 
           <Box
