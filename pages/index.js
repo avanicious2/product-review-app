@@ -57,52 +57,46 @@ export default function Home() {
   };
 
   const preloadAllImageUrls = async (productsList) => {
-    console.log(`Starting to preload image URLs for ${productsList.length} products`);
-    
-    // Creating a map to store scrape_id -> imageUrl
-    const urlMap = {};
-    let successCount = 0;
-    let failCount = 0;
-    
-    // Process in batches to avoid overwhelming the server
-    const batchSize = 10;
-    
-    for (let i = 0; i < productsList.length; i += batchSize) {
-      const batch = productsList.slice(i, i + batchSize);
-      const batchPromises = batch.map(product => {
-        return new Promise(async (resolve) => {
-          try {
-            const response = await fetch('/api/gen-s3-url', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                scrape_id: product.scrape_id
-              }),
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              urlMap[product.scrape_id] = data.url;
-              successCount++;
-            } else {
-              failCount++;
-            }
-          } catch (err) {
-            console.error(`Error generating URL for product ${product.scrape_id}:`, err);
-            failCount++;
-          }
-          resolve();
+  console.log(`Starting to preload image URLs for ${productsList.length} products in a single batch`);
+  
+  // Creating a map to store scrape_id -> imageUrl
+  const urlMap = {};
+  let successCount = 0;
+  let failCount = 0;
+  
+  // Process all products at once
+  const promises = productsList.map(product => {
+    return new Promise(async (resolve) => {
+      try {
+        const response = await fetch('/api/gen-s3-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scrape_id: product.scrape_id
+          }),
         });
-      });
-      
-      // Wait for current batch to complete
-      await Promise.all(batchPromises);
-      console.log(`Processed ${i + batch.length} / ${productsList.length} URLs`);
-    }
-    
-    console.log(`URL preloading complete. Success: ${successCount}, Failed: ${failCount}`);
-    return urlMap;
-  };
+        
+        if (response.ok) {
+          const data = await response.json();
+          urlMap[product.scrape_id] = data.url;
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        console.error(`Error generating URL for product ${product.scrape_id}:`, err);
+        failCount++;
+      }
+      resolve();
+    });
+  });
+  
+  // Wait for all promises to complete
+  await Promise.all(promises);
+  
+  console.log(`URL preloading complete. Success: ${successCount}, Failed: ${failCount}`);
+  return urlMap;
+};
 // Replace the existing fetchProducts function with this enhanced version
   const fetchProducts = async (userEmail) => {
     setLoading(true);
@@ -353,12 +347,16 @@ export default function Home() {
           <Text fontSize="xl" fontWeight="bold">Session Complete!</Text>
           <Text fontSize="md" mb={2}>You reviewed {reviewCounter} products</Text>
           <Text fontSize="sm">Start new session to review more products</Text>
+          // Replace the Button component in the Session Complete view
           <Button 
             mt={4} 
             colorScheme="blue" 
             onClick={() => {
+              // Clear localStorage items related to products
               localStorage.removeItem('currentProductIndex');
-              window.location.reload();
+              localStorage.removeItem('products');
+              // Fetch fresh products
+              fetchProducts(email);
             }}
           >
             Start New Session
