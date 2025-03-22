@@ -347,15 +347,12 @@ export default function Home() {
           <Text fontSize="xl" fontWeight="bold">Session Complete!</Text>
           <Text fontSize="md" mb={2}>You reviewed {reviewCounter} products</Text>
           <Text fontSize="sm">Start new session to review more products</Text>
-          // Replace the Button component in the Session Complete view
           <Button 
             mt={4} 
             colorScheme="blue" 
             onClick={() => {
-              // Clear localStorage items related to products
               localStorage.removeItem('currentProductIndex');
               localStorage.removeItem('products');
-              // Fetch fresh products
               fetchProducts(email);
             }}
           >
