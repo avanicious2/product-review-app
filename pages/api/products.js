@@ -39,7 +39,7 @@ export default async function handler(req, res) {
        AND i.reviews_uploaded = 0
        AND (r.review_score IS NULL)
        ORDER BY i.created_at desc
-       LIMIT 200`;
+       LIMIT 1000`;
     
     console.log('Executing products query:', productsQuery);
     console.log('With params:', [email, userData.batch_number]);
